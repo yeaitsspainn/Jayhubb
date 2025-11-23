@@ -945,4 +945,156 @@ CrosshairSettings:AddDropdown({
 
 CrosshairSettings_CenterDot:AddToggle({
 	Name = "Center Dot",
-	Value = WallHack.Crosshair.Settings
+	Value = WallHack.Crosshair.Settings.CenterDot,
+	Callback = function(New, Old)
+		WallHack.Crosshair.Settings.CenterDot = New
+	end
+}).Default = WallHack.Crosshair.Settings.CenterDot
+
+CrosshairSettings_CenterDot:AddColorpicker({
+	Name = "Center Dot Color",
+	Value = WallHack.Crosshair.Settings.CenterDotColor,
+	Callback = function(New, Old)
+		WallHack.Crosshair.Settings.CenterDotColor = New
+	end
+}).Default = WallHack.Crosshair.Settings.CenterDotColor
+
+CrosshairSettings_CenterDot:AddSlider({
+	Name = "Center Dot Size",
+	Value = WallHack.Crosshair.Settings.CenterDotSize,
+	Callback = function(New, Old)
+		WallHack.Crosshair.Settings.CenterDotSize = New
+	end,
+	Min = 1,
+	Max = 6
+}).Default = WallHack.Crosshair.Settings.CenterDotSize
+
+CrosshairSettings_CenterDot:AddSlider({
+	Name = "Center Dot Transparency",
+	Value = WallHack.Crosshair.Settings.CenterDotTransparency,
+	Callback = function(New, Old)
+		WallHack.Crosshair.Settings.CenterDotTransparency = New
+	end,
+	Min = 0,
+	Max = 1,
+	Decimals = 2
+}).Default = WallHack.Crosshair.Settings.CenterDotTransparency
+
+CrosshairSettings_CenterDot:AddToggle({
+	Name = "Center Dot Filled",
+	Value = WallHack.Crosshair.Settings.CenterDotFilled,
+	Callback = function(New, Old)
+		WallHack.Crosshair.Settings.CenterDotFilled = New
+	end
+}).Default = WallHack.Crosshair.Settings.CenterDotFilled
+
+--// Mobile Controls
+if IS_MOBILE and MobileSection then
+    MobileSection:AddButton({
+        Name = "Show/Hide Controls",
+        Callback = function()
+            local mobileControls = game:GetService("CoreGui"):FindFirstChild("MobileControls")
+            if mobileControls then
+                mobileControls.Enabled = not mobileControls.Enabled
+            end
+        end
+    })
+    
+    MobileSection:AddSlider({
+        Name = "Aim Button Size",
+        Value = 80,
+        Callback = function(New, Old)
+            local mobileControls = game:GetService("CoreGui"):FindFirstChild("MobileControls")
+            if mobileControls then
+                local aimButton = mobileControls:FindFirstChild("AimButton")
+                local toggleButton = mobileControls:FindFirstChild("ToggleButton")
+                if aimButton then
+                    aimButton.Size = UDim2.new(0, New, 0, New)
+                end
+                if toggleButton then
+                    toggleButton.Size = UDim2.new(0, New, 0, New)
+                    toggleButton.Position = UDim2.new(1, -100, 1, -(New + 10))
+                end
+            end
+        end,
+        Min = 60,
+        Max = 120
+    }).Default = 80
+    
+    MobileSection:AddSlider({
+        Name = "Aim Button Transparency",
+        Value = 0.3,
+        Callback = function(New, Old)
+            local mobileControls = game:GetService("CoreGui"):FindFirstChild("MobileControls")
+            if mobileControls then
+                local aimButton = mobileControls:FindFirstChild("AimButton")
+                local toggleButton = mobileControls:FindFirstChild("ToggleButton")
+                if aimButton then
+                    aimButton.BackgroundTransparency = New
+                end
+                if toggleButton then
+                    toggleButton.BackgroundTransparency = New
+                end
+            end
+        end,
+        Min = 0,
+        Max = 0.7,
+        Decimals = 2
+    }).Default = 0.3
+end
+
+--// Functions / Functions
+
+FunctionsSection:AddButton({
+	Name = "Reset Settings",
+	Callback = function()
+		Aimbot.Functions:ResetSettings()
+		WallHack.Functions:ResetSettings()
+		Library.ResetAll()
+	end
+})
+
+FunctionsSection:AddButton({
+	Name = "Restart",
+	Callback = function()
+		Aimbot.Functions:Restart()
+		WallHack.Functions:Restart()
+	end
+})
+
+FunctionsSection:AddButton({
+	Name = "Exit",
+	Callback = Library.Unload,
+})
+
+FunctionsSection:AddButton({
+	Name = "Copy Script Page",
+	Callback = function()
+		setclipboard("https://github.com/Exunys/AirHub")
+	end
+})
+
+--// AirHub V2 Prompt
+
+do
+	local Aux = Instance.new("BindableFunction")
+    
+	Aux.OnInvoke = function(Answer)
+		if Answer == "No" then
+			return
+		end
+
+		Library.Unload()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/Exunys/AirHub-V2/main/src/Main.lua"))()
+	end
+
+	game.StarterGui:SetCore("SendNotification", {
+		Title = "🎆  HAXZO ESP  🎆",
+		Text = "Would you like to use the new HAXZO ESP script?",
+		Button1 = "Yes",
+		Button2 = "No",
+		Duration = 1 / 0,
+		Icon = "rbxassetid://6238537240",
+		Callback = Aux
+	})
+end
