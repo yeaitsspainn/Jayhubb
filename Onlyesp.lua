@@ -8,8 +8,12 @@ local TweenService = game:GetService("TweenService")
 -- Settings
 local ESP_Enabled = false
 local Aimbot_Enabled = false
+local TeamCheck = true
+local WallCheck = true
+local AliveCheck = true
 local FOV = 100
 local Smoothness = 0.5
+local GUI_Visible = true
 
 -- Advanced HAXZO PRODUCTIONS GUI
 local gui = Instance.new("ScreenGui")
@@ -18,14 +22,36 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+-- Open/Close Button (Top Left)
+local openCloseButton = Instance.new("TextButton")
+openCloseButton.Size = UDim2.new(0, 120, 0, 40)
+openCloseButton.Position = UDim2.new(0, 10, 0, 10)
+openCloseButton.BackgroundColor3 = Color3.fromRGB(100, 80, 200)
+openCloseButton.Text = "HAXZO MENU"
+openCloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+openCloseButton.TextSize = 14
+openCloseButton.Font = Enum.Font.SourceSansBold
+openCloseButton.Visible = true
+openCloseButton.Parent = gui
+
+local openCloseCorner = Instance.new("UICorner")
+openCloseCorner.CornerRadius = UDim.new(0, 8)
+openCloseCorner.Parent = openCloseButton
+
+local openCloseStroke = Instance.new("UIStroke")
+openCloseStroke.Color = Color3.fromRGB(180, 160, 255)
+openCloseStroke.Thickness = 2
+openCloseStroke.Parent = openCloseButton
+
 -- Main Container
 local mainContainer = Instance.new("Frame")
-mainContainer.Size = UDim2.new(0, 400, 0, 500)
-mainContainer.Position = UDim2.new(0.5, -200, 0.5, -250)
+mainContainer.Size = UDim2.new(0, 450, 0, 550)
+mainContainer.Position = UDim2.new(0.5, -225, 0.5, -275)
 mainContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
 mainContainer.BorderSizePixel = 0
 mainContainer.Active = true
 mainContainer.Draggable = true
+mainContainer.Visible = GUI_Visible
 mainContainer.Parent = gui
 
 -- Modern Styling
@@ -77,7 +103,7 @@ subtitle.BackgroundTransparency = 1
 subtitle.Text = "PREMIUM SUITE v2.1"
 subtitle.TextColor3 = Color3.fromRGB(180, 160, 255)
 subtitle.TextSize = 12
-title.Font = Enum.Font.SourceSansLight
+subtitle.Font = Enum.Font.SourceSansLight
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.Parent = header
 
@@ -273,6 +299,183 @@ local aimbotToggleCorner = Instance.new("UICorner")
 aimbotToggleCorner.CornerRadius = UDim.new(0, 8)
 aimbotToggleCorner.Parent = aimbotToggle
 
+-- Settings Content
+local settingsContent = Instance.new("Frame")
+settingsContent.Size = UDim2.new(1, 0, 1, -50)
+settingsContent.Position = UDim2.new(0, 0, 0, 50)
+settingsContent.BackgroundTransparency = 1
+settingsContent.Visible = false
+settingsContent.Parent = contentFrame
+
+-- FOV Slider
+local fovCard = Instance.new("Frame")
+fovCard.Size = UDim2.new(1, 0, 0, 100)
+fovCard.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+fovCard.BorderSizePixel = 0
+fovCard.Parent = settingsContent
+
+local fovCardCorner = Instance.new("UICorner")
+fovCardCorner.CornerRadius = UDim.new(0, 10)
+fovCardCorner.Parent = fovCard
+
+local fovTitle = Instance.new("TextLabel")
+fovTitle.Size = UDim2.new(1, -20, 0, 30)
+fovTitle.Position = UDim2.new(0, 10, 0, 10)
+fovTitle.BackgroundTransparency = 1
+fovTitle.Text = "FOV CIRCLE: " .. FOV
+fovTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+fovTitle.TextSize = 16
+fovTitle.Font = Enum.Font.SourceSansBold
+fovTitle.TextXAlignment = Enum.TextXAlignment.Left
+fovTitle.Parent = fovCard
+
+local fovSlider = Instance.new("Frame")
+fovSlider.Size = UDim2.new(1, -20, 0, 30)
+fovSlider.Position = UDim2.new(0, 10, 0, 45)
+fovSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+fovSlider.BorderSizePixel = 0
+fovSlider.Parent = fovCard
+
+local fovSliderCorner = Instance.new("UICorner")
+fovSliderCorner.CornerRadius = UDim.new(0, 8)
+fovSliderCorner.Parent = fovSlider
+
+local fovFill = Instance.new("Frame")
+fovFill.Size = UDim2.new((FOV - 10) / (300 - 10), 0, 1, 0)
+fovFill.Position = UDim2.new(0, 0, 0, 0)
+fovFill.BackgroundColor3 = Color3.fromRGB(100, 80, 200)
+fovFill.BorderSizePixel = 0
+fovFill.Parent = fovSlider
+
+local fovFillCorner = Instance.new("UICorner")
+fovFillCorner.CornerRadius = UDim.new(0, 8)
+fovFillCorner.Parent = fovFill
+
+local fovSliderButton = Instance.new("TextButton")
+fovSliderButton.Size = UDim2.new(1, 0, 1, 0)
+fovSliderButton.BackgroundTransparency = 1
+fovSliderButton.Text = ""
+fovSliderButton.Parent = fovSlider
+
+-- Check Settings Cards
+local checksCard = Instance.new("Frame")
+checksCard.Size = UDim2.new(1, 0, 0, 150)
+checksCard.Position = UDim2.new(0, 0, 0, 110)
+checksCard.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+checksCard.BorderSizePixel = 0
+checksCard.Parent = settingsContent
+
+local checksCardCorner = Instance.new("UICorner")
+checksCardCorner.CornerRadius = UDim.new(0, 10)
+checksCardCorner.Parent = checksCard
+
+local checksTitle = Instance.new("TextLabel")
+checksTitle.Size = UDim2.new(1, -20, 0, 30)
+checksTitle.Position = UDim2.new(0, 10, 0, 10)
+checksTitle.BackgroundTransparency = 1
+checksTitle.Text = "TARGET FILTERS"
+checksTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+checksTitle.TextSize = 16
+checksTitle.Font = Enum.Font.SourceSansBold
+checksTitle.TextXAlignment = Enum.TextXAlignment.Left
+checksTitle.Parent = checksCard
+
+-- Team Check
+local teamCheckFrame = Instance.new("Frame")
+teamCheckFrame.Size = UDim2.new(1, -20, 0, 30)
+teamCheckFrame.Position = UDim2.new(0, 10, 0, 45)
+teamCheckFrame.BackgroundTransparency = 1
+teamCheckFrame.Parent = checksCard
+
+local teamCheckLabel = Instance.new("TextLabel")
+teamCheckLabel.Size = UDim2.new(0.7, 0, 1, 0)
+teamCheckLabel.Position = UDim2.new(0, 0, 0, 0)
+teamCheckLabel.BackgroundTransparency = 1
+teamCheckLabel.Text = "Team Check"
+teamCheckLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+teamCheckLabel.TextSize = 14
+teamCheckLabel.Font = Enum.Font.SourceSansSemibold
+teamCheckLabel.TextXAlignment = Enum.TextXAlignment.Left
+teamCheckLabel.Parent = teamCheckFrame
+
+local teamCheckToggle = Instance.new("TextButton")
+teamCheckToggle.Size = UDim2.new(0, 60, 0, 25)
+teamCheckToggle.Position = UDim2.new(1, -60, 0.5, -12)
+teamCheckToggle.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
+teamCheckToggle.Text = "ON"
+teamCheckToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+teamCheckToggle.TextSize = 12
+teamCheckToggle.Font = Enum.Font.SourceSansBold
+teamCheckToggle.Parent = teamCheckFrame
+
+local teamCheckCorner = Instance.new("UICorner")
+teamCheckCorner.CornerRadius = UDim.new(0, 8)
+teamCheckCorner.Parent = teamCheckToggle
+
+-- Wall Check
+local wallCheckFrame = Instance.new("Frame")
+wallCheckFrame.Size = UDim2.new(1, -20, 0, 30)
+wallCheckFrame.Position = UDim2.new(0, 10, 0, 80)
+wallCheckFrame.BackgroundTransparency = 1
+wallCheckFrame.Parent = checksCard
+
+local wallCheckLabel = Instance.new("TextLabel")
+wallCheckLabel.Size = UDim2.new(0.7, 0, 1, 0)
+wallCheckLabel.Position = UDim2.new(0, 0, 0, 0)
+wallCheckLabel.BackgroundTransparency = 1
+wallCheckLabel.Text = "Wall Check"
+wallCheckLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+wallCheckLabel.TextSize = 14
+wallCheckLabel.Font = Enum.Font.SourceSansSemibold
+wallCheckLabel.TextXAlignment = Enum.TextXAlignment.Left
+wallCheckLabel.Parent = wallCheckFrame
+
+local wallCheckToggle = Instance.new("TextButton")
+wallCheckToggle.Size = UDim2.new(0, 60, 0, 25)
+wallCheckToggle.Position = UDim2.new(1, -60, 0.5, -12)
+wallCheckToggle.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
+wallCheckToggle.Text = "ON"
+wallCheckToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+wallCheckToggle.TextSize = 12
+wallCheckToggle.Font = Enum.Font.SourceSansBold
+wallCheckToggle.Parent = wallCheckFrame
+
+local wallCheckCorner = Instance.new("UICorner")
+wallCheckCorner.CornerRadius = UDim.new(0, 8)
+wallCheckCorner.Parent = wallCheckToggle
+
+-- Alive Check
+local aliveCheckFrame = Instance.new("Frame")
+aliveCheckFrame.Size = UDim2.new(1, -20, 0, 30)
+aliveCheckFrame.Position = UDim2.new(0, 10, 0, 115)
+aliveCheckFrame.BackgroundTransparency = 1
+aliveCheckFrame.Parent = checksCard
+
+local aliveCheckLabel = Instance.new("TextLabel")
+aliveCheckLabel.Size = UDim2.new(0.7, 0, 1, 0)
+aliveCheckLabel.Position = UDim2.new(0, 0, 0, 0)
+aliveCheckLabel.BackgroundTransparency = 1
+aliveCheckLabel.Text = "Alive Check"
+aliveCheckLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+aliveCheckLabel.TextSize = 14
+aliveCheckLabel.Font = Enum.Font.SourceSansSemibold
+aliveCheckLabel.TextXAlignment = Enum.TextXAlignment.Left
+aliveCheckLabel.Parent = aliveCheckFrame
+
+local aliveCheckToggle = Instance.new("TextButton")
+aliveCheckToggle.Size = UDim2.new(0, 60, 0, 25)
+aliveCheckToggle.Position = UDim2.new(1, -60, 0.5, -12)
+aliveCheckToggle.BackgroundColor3 = Color3.fromRGB(80, 200, 120)
+aliveCheckToggle.Text = "ON"
+aliveCheckToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+aliveCheckToggle.TextSize = 12
+aliveCheckToggle.Font = Enum.Font.SourceSansBold
+aliveCheckToggle.Parent = aliveCheckFrame
+
+local aliveCheckCorner = Instance.new("UICorner")
+aliveCheckCorner.CornerRadius = UDim.new(0, 8)
+aliveCheckCorner.Parent = aliveCheckToggle
+
 -- Status Bar
 local statusBar = Instance.new("Frame")
 statusBar.Size = UDim2.new(1, 0, 0, 40)
@@ -289,7 +492,7 @@ local statusText = Instance.new("TextLabel")
 statusText.Size = UDim2.new(1, -20, 1, 0)
 statusText.Position = UDim2.new(0, 10, 0, 0)
 statusText.BackgroundTransparency = 1
-statusText.Text = "HAXZO PRODUCTIONS | STATUS: READY"
+statusText.Text = "HAXZO PRODUCTIONS | STATUS: READY | FOV: " .. FOV
 statusText.TextColor3 = Color3.fromRGB(180, 160, 255)
 statusText.TextSize = 12
 statusText.Font = Enum.Font.SourceSansSemibold
@@ -305,11 +508,17 @@ fovCircle.Radius = FOV
 fovCircle.Visible = false
 
 -- GUI Interactions
+local function toggleGUI()
+    GUI_Visible = not GUI_Visible
+    mainContainer.Visible = GUI_Visible
+    openCloseButton.Text = GUI_Visible and "CLOSE MENU" or "OPEN MENU"
+end
+
 local function toggleESP()
     ESP_Enabled = not ESP_Enabled
     espToggle.Text = ESP_Enabled and "ON" or "OFF"
     espToggle.BackgroundColor3 = ESP_Enabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
-    statusText.Text = ESP_Enabled and "HAXZO PRODUCTIONS | ESP: ENABLED" or "HAXZO PRODUCTIONS | ESP: DISABLED"
+    statusText.Text = "HAXZO PRODUCTIONS | ESP: " .. (ESP_Enabled and "ENABLED" or "DISABLED") .. " | FOV: " .. FOV
 end
 
 local function toggleAimbot()
@@ -317,12 +526,60 @@ local function toggleAimbot()
     aimbotToggle.Text = Aimbot_Enabled and "ON" or "OFF"
     aimbotToggle.BackgroundColor3 = Aimbot_Enabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
     fovCircle.Visible = Aimbot_Enabled
-    statusText.Text = Aimbot_Enabled and "HAXZO PRODUCTIONS | AIMBOT: ENABLED" or "HAXZO PRODUCTIONS | AIMBOT: DISABLED"
+    statusText.Text = "HAXZO PRODUCTIONS | AIMBOT: " .. (Aimbot_Enabled and "ENABLED" or "DISABLED") .. " | FOV: " .. FOV
 end
 
+local function toggleTeamCheck()
+    TeamCheck = not TeamCheck
+    teamCheckToggle.Text = TeamCheck and "ON" or "OFF"
+    teamCheckToggle.BackgroundColor3 = TeamCheck and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
+end
+
+local function toggleWallCheck()
+    WallCheck = not WallCheck
+    wallCheckToggle.Text = WallCheck and "ON" or "OFF"
+    wallCheckToggle.BackgroundColor3 = WallCheck and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
+end
+
+local function toggleAliveCheck()
+    AliveCheck = not AliveCheck
+    aliveCheckToggle.Text = AliveCheck and "ON" or "OFF"
+    aliveCheckToggle.BackgroundColor3 = AliveCheck and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
+end
+
+-- FOV Slider Functionality
+local function updateFOV(value)
+    FOV = math.floor(value)
+    fovCircle.Radius = FOV
+    fovFill.Size = UDim2.new((FOV - 10) / (300 - 10), 0, 1, 0)
+    fovTitle.Text = "FOV CIRCLE: " .. FOV
+    statusText.Text = "HAXZO PRODUCTIONS | FOV UPDATED: " .. FOV
+end
+
+fovSliderButton.MouseButton1Down:Connect(function()
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        local mouse = UserInputService:GetMouseLocation()
+        local relativeX = math.clamp(mouse.X - fovSlider.AbsolutePosition.X, 0, fovSlider.AbsoluteSize.X)
+        local percentage = relativeX / fovSlider.AbsoluteSize.X
+        local newFOV = math.floor(10 + percentage * (300 - 10))
+        updateFOV(newFOV)
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            connection:Disconnect()
+        end
+    end)
+end)
+
+-- Button Connections
 espToggle.MouseButton1Click:Connect(toggleESP)
 aimbotToggle.MouseButton1Click:Connect(toggleAimbot)
-
+teamCheckToggle.MouseButton1Click:Connect(toggleTeamCheck)
+wallCheckToggle.MouseButton1Click:Connect(toggleWallCheck)
+aliveCheckToggle.MouseButton1Click:Connect(toggleAliveCheck)
+openCloseButton.MouseButton1Click:Connect(toggleGUI)
 closeButton.MouseButton1Click:Connect(function()
     gui:Destroy()
 end)
@@ -336,15 +593,66 @@ mainTab.MouseButton1Click:Connect(function()
     mainTab.BackgroundColor3 = Color3.fromRGB(60, 50, 100)
     settingsTab.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     mainContent.Visible = true
+    settingsContent.Visible = false
 end)
 
 settingsTab.MouseButton1Click:Connect(function()
     settingsTab.BackgroundColor3 = Color3.fromRGB(60, 50, 100)
     mainTab.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     mainContent.Visible = false
+    settingsContent.Visible = true
 end)
 
--- YOUR ORIGINAL ESP AND AIMBOT CODE
+-- Left Shift Keybind
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.LeftShift then
+        toggleGUI()
+    end
+end)
+
+-- Wall Check Function
+local function isVisible(target)
+    if not WallCheck then return true end
+    
+    local character = LocalPlayer.Character
+    if not character then return false end
+    
+    local head = character:FindFirstChild("Head")
+    if not head then return false end
+    
+    local targetHead = target.Character:FindFirstChild("Head")
+    if not targetHead then return false end
+    
+    local origin = head.Position
+    local destination = targetHead.Position
+    local direction = (destination - origin).Unit
+    local distance = (destination - origin).Magnitude
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {character, target.Character}
+    
+    local raycastResult = workspace:Raycast(origin, direction * distance, raycastParams)
+    
+    return raycastResult == nil
+end
+
+-- Alive Check Function
+local function isAlive(target)
+    if not AliveCheck then return true end
+    
+    local character = target.Character
+    if not character then return false end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return false end
+    
+    return humanoid.Health > 0
+end
+
+-- YOUR ORIGINAL ESP AND AIMBOT CODE (UPDATED)
 function CreateESP(target)
     local text = Drawing.new("Text")
     text.Size = 13
@@ -355,7 +663,19 @@ function CreateESP(target)
     text.Visible = false
 
     RunService.RenderStepped:Connect(function()
-        if ESP_Enabled and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and target.Team ~= LocalPlayer.Team then
+        if ESP_Enabled and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            -- Team Check
+            if TeamCheck and target.Team == LocalPlayer.Team then
+                text.Visible = false
+                return
+            end
+            
+            -- Alive Check
+            if AliveCheck and not isAlive(target) then
+                text.Visible = false
+                return
+            end
+            
             local pos, onScreen = Camera:WorldToViewportPoint(target.Character.HumanoidRootPart.Position)
             if onScreen then
                 text.Position = Vector2.new(pos.X, pos.Y - 20)
@@ -383,13 +703,28 @@ Players.PlayerAdded:Connect(function(p)
     end
 end)
 
--- Encontrar inimigo mais próximo dentro do FOV
+-- Encontrar inimigo mais próximo dentro do FOV (UPDATED)
 function GetClosestEnemy()
     local closest = nil
     local shortestDistance = FOV
 
     for _, enemy in pairs(Players:GetPlayers()) do
-        if enemy ~= LocalPlayer and enemy.Team ~= LocalPlayer.Team and enemy.Character and enemy.Character:FindFirstChild("Head") then
+        if enemy ~= LocalPlayer and enemy.Character and enemy.Character:FindFirstChild("Head") then
+            -- Team Check
+            if TeamCheck and enemy.Team == LocalPlayer.Team then
+                continue
+            end
+            
+            -- Alive Check
+            if AliveCheck and not isAlive(enemy) then
+                continue
+            end
+            
+            -- Wall Check
+            if WallCheck and not isVisible(enemy) then
+                continue
+            end
+            
             local head = enemy.Character.Head
             local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
             if onScreen then
@@ -421,4 +756,5 @@ end)
 
 print("HAXZO PRODUCTIONS Premium Suite Loaded!")
 print("Advanced GUI System Activated")
-print("ESP & Aimbot Systems Ready")
+print("Controls: Left Shift to open/close menu")
+print("Features: FOV Slider, Team Check, Wall Check, Alive Check")
