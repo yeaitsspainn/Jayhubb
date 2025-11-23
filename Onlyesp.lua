@@ -1,194 +1,288 @@
--- Obfuscated variable names and structure
-local _G = getgenv()
-local HttpService = game:GetService("HttpService")
-local RandomId = HttpService:GenerateGUID(false)
+-- Jalbird ESP & Aim with GUI Controls
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Delayed execution to avoid pattern detection
-task.wait(math.random(1, 3))
-
--- Load Rayfield with error handling
-local success, RayfieldLib = pcall(function()
-    return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-end)
-
-if not success then
-    return
-end
-
--- Create window with generic name
-local MainWindow = RayfieldLib:CreateWindow({
-    Name = "Jailbird all in one",
-    LoadingTitle = "Loading Tools...",
-    LoadingSubtitle = "Please wait",
+local Window = Rayfield:CreateWindow({
+    Name = "Jalbird ESP & Aim",
+    LoadingTitle = "Loading Jalbird script",
+    LoadingSubtitle = "by Haxzo",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "GameConfig",
-        FileName = "UserSettings"
+        FolderName = "JalbirdConfig",
+        FileName = "Settings"
     },
-    KeySystem = false
+    Discord = {
+        Enabled = false,
+        Invite = "",
+        RememberJoins = true
+    },
+    KeySystem = false,
+    KeySettings = {
+        Title = "Jalbird Key System",
+        Subtitle = "Key System",
+        Note = "No key required",
+        FileName = "KeyFile",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = ""
+    }
 })
 
--- Services with delayed loading
-local GameServices = {
-    Players = game:GetService("Players"),
-    RunService = game:GetService("RunService"),
-    UserInputService = game:GetService("UserInputService"),
-    Workspace = game:GetService("Workspace")
-}
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
 
-local LocalPlayer = GameServices.Players.LocalPlayer
-local CurrentCamera = GameServices.Workspace.CurrentCamera
+-- Settings (all disabled by default)
+local ESPEnabled = false
+local AimbotEnabled = false
+local SilentAimEnabled = false
+local FOV = 100
+local FOVCircleVisible = false
 
--- ESP System with reduced visibility
-local VisualAssistFolder = Instance.new("Folder")
-VisualAssistFolder.Name = "VisualHelpers_" .. RandomId
-VisualAssistFolder.Parent = game.CoreGui
+-- ESP System (disabled until toggled)
+local ESPFolder = Instance.new("Folder", game.CoreGui)
+ESPFolder.Name = "JalbirdESP"
 
-local function CreateVisualMarker(targetPlayer)
-    if targetPlayer == LocalPlayer then return end
-    
-    local visualBox = Instance.new("BoxHandleAdornment")
-    visualBox.Name = "Marker_" .. targetPlayer.Name
-    visualBox.Adornee = nil
-    visualBox.AlwaysOnTop = false  -- Less obvious
-    visualBox.ZIndex = 1  -- Lower priority
-    visualBox.Size = Vector3.new(3.5, 5.5, 3.5)
-    visualBox.Transparency = 0.7  -- More transparent
-    visualBox.Color3 = Color3.fromRGB(150, 50, 50)  -- Less bright red
-    visualBox.Parent = VisualAssistFolder
+-- FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Color = Color3.new(1, 1, 0)
+FOVCircle.Thickness = 1
+FOVCircle.Filled = false
+FOVCircle.Radius = FOV
+FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
-    local updateConnection
-    updateConnection = GameServices.RunService.Heartbeat:Connect(function()
-        if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                visualBox.Adornee = targetPlayer.Character.HumanoidRootPart
-                visualBox.Visible = true
-            else
-                visualBox.Visible = false
-                visualBox.Adornee = nil
-            end
+-- ESP Toggle
+local ESPToggle = Window:CreateToggle({
+    Name = "ESP",
+    CurrentValue = false,
+    Flag = "ESPToggle",
+    Callback = function(value)
+        ESPEnabled = value
+        if value then
+            enableESP()
         else
-            visualBox.Visible = false
-            visualBox.Adornee = nil
+            disableESP()
         end
-    end)
+    end
+})
 
-    -- Clean up when player leaves
-    targetPlayer.AncestryChanged:Connect(function()
-        if not targetPlayer.Parent then
-            updateConnection:Disconnect()
-            visualBox:Destroy()
+-- Aimbot Toggle
+local AimbotToggle = Window:CreateToggle({
+    Name = "Aimbot (Mobile)",
+    CurrentValue = false,
+    Flag = "AimbotToggle",
+    Callback = function(value)
+        AimbotEnabled = value
+        if value then
+            SilentAimEnabled = false
+            SilentAimToggle.Set(false)
         end
-    end)
+    end
+})
+
+-- Silent Aim Toggle
+local SilentAimToggle = Window:CreateToggle({
+    Name = "Silent Aim (PC)",
+    CurrentValue = false,
+    Flag = "SilentAimToggle",
+    Callback = function(value)
+        SilentAimEnabled = value
+        if value then
+            AimbotEnabled = false
+            AimbotToggle.Set(false)
+        end
+    end
+})
+
+-- FOV Circle Toggle
+local FOVCircleToggle = Window:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = false,
+    Flag = "FOVCircleToggle",
+    Callback = function(value)
+        FOVCircleVisible = value
+        FOVCircle.Visible = value
+    end
+})
+
+-- FOV Slider
+local FOVSlider = Window:CreateSlider({
+    Name = "FOV Size",
+    Range = {10, 300},
+    Increment = 10,
+    Suffix = "units",
+    CurrentValue = 100,
+    Flag = "FOVSlider",
+    Callback = function(value)
+        FOV = value
+        FOVCircle.Radius = value
+    end
+})
+
+-- ESP Functions
+local ESPBoxes = {}
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+    
+    local espBox = Instance.new("BoxHandleAdornment")
+    espBox.Adornee = nil
+    espBox.AlwaysOnTop = true
+    espBox.ZIndex = 10
+    espBox.Size = Vector3.new(4, 6, 4)
+    espBox.Transparency = 0.5
+    espBox.Color3 = Color3.new(1, 0, 0)
+    espBox.Visible = false
+    espBox.Parent = ESPFolder
+    
+    ESPBoxes[player] = espBox
+    
+    local function update()
+        if ESPEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            espBox.Adornee = player.Character.HumanoidRootPart
+            espBox.Size = Vector3.new(4, player.Character.HumanoidRootPart.Size.Y * 2, 4)
+            espBox.Color3 = Color3.new(1, 0, 0)
+            espBox.Transparency = 0.5
+            espBox.Visible = true
+        else
+            espBox.Visible = false
+            espBox.Adornee = nil
+        end
+    end
+    
+    RunService.RenderStepped:Connect(update)
 end
 
--- Initialize visual markers with delay
-task.spawn(function()
-    task.wait(2)
-    for _, player in pairs(GameServices.Players:GetPlayers()) do
-        CreateVisualMarker(player)
-    end
-end)
-
-GameServices.Players.PlayerAdded:Connect(function(player)
-    task.wait(1)
-    CreateVisualMarker(player)
-end)
-
--- Aim assistance system
-local AimSettings = {
-    VisualAssist = false,
-    CameraAssist = false,
-    IsMobileDevice = GameServices.UserInputService.TouchEnabled
-}
-
-local VisualAssistToggle = MainWindow:CreateToggle({
-    Name = "Visual Assistance",
-    CurrentValue = false,
-    Flag = "VisualAssistFlag",
-    Callback = function(value)
-        AimSettings.VisualAssist = value
-        VisualAssistFolder.Enabled = value
-    end
-})
-
-local CameraAssistToggle = MainWindow:CreateToggle({
-    Name = "Camera Assistance",
-    CurrentValue = false,
-    Flag = "CameraAssistFlag",
-    Callback = function(value)
-        AimSettings.CameraAssist = value
-        if value then
-            AimSettings.VisualAssist = false
-            VisualAssistToggle.Set(false)
+local function enableESP()
+    for player, espBox in pairs(ESPBoxes) do
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            espBox.Visible = true
         end
     end
-})
+end
 
--- Target acquisition with randomness
-local function FindOptimalTarget()
-    local bestTarget = nil
-    local closestDistance = 50  -- Limited range
-    
-    for _, potentialTarget in pairs(GameServices.Players:GetPlayers()) do
-        if potentialTarget ~= LocalPlayer and potentialTarget.Character then
-            local rootPart = potentialTarget.Character:FindFirstChild("HumanoidRootPart")
-            local humanoid = potentialTarget.Character:FindFirstChildOfClass("Humanoid")
-            
-            if rootPart and humanoid and humanoid.Health > 0 then
-                local screenPos, onScreen = CurrentCamera:WorldToViewportPoint(rootPart.Position)
-                if onScreen then
-                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - 
-                                   Vector2.new(CurrentCamera.ViewportSize.X/2, CurrentCamera.ViewportSize.Y/2)).Magnitude
-                    
-                    if distance < closestDistance then
-                        closestDistance = distance
-                        bestTarget = potentialTarget
-                    end
+local function disableESP()
+    for player, espBox in pairs(ESPBoxes) do
+        espBox.Visible = false
+        espBox.Adornee = nil
+    end
+end
+
+-- Initialize ESP for all players (but keep disabled)
+for _, player in pairs(Players:GetPlayers()) do
+    createESP(player)
+end
+
+Players.PlayerAdded:Connect(function(player)
+    createESP(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if ESPBoxes[player] then
+        ESPBoxes[player]:Destroy()
+        ESPBoxes[player] = nil
+    end
+end)
+
+-- Aimbot Functions
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local function getClosestEnemyToCursor()
+    local closestPlayer = nil
+    local shortestDistance = FOV
+    local mouseLocation = UserInputService:GetMouseLocation()
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local distance = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouseLocation.X, mouseLocation.Y)).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
                 end
             end
         end
     end
-    
-    return bestTarget
+    return closestPlayer
 end
 
--- Subtle camera adjustment
-local LastCameraUpdate = tick()
-GameServices.RunService.Heartbeat:Connect(function()
-    if not AimSettings.CameraAssist then return end
+local function getClosestEnemyToCenter()
+    local closestPlayer = nil
+    local shortestDistance = FOV
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- Silent Aim Hook (PC)
+local mt = getrawmetatable(game)
+local oldIndex = mt.__index
+setreadonly(mt, false)
+
+mt.__index = newcclosure(function(self, key)
+    if SilentAimEnabled and key == "Hit" and self == workspace.CurrentCamera then
+        local target = getClosestEnemyToCursor()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            return target.Character.Head
+        end
+    end
+    return oldIndex(self, key)
+end)
+
+setreadonly(mt, true)
+
+-- Aimbot for Mobile
+RunService.RenderStepped:Connect(function()
+    -- Update FOV Circle position
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
-    local currentTime = tick()
-    if currentTime - LastCameraUpdate < 0.1 then return end  -- Limit updates
-    LastCameraUpdate = currentTime
-    
-    local target = FindOptimalTarget()
-    if target and target.Character then
-        local targetPart = target.Character:FindFirstChild("HumanoidRootPart")
-        if targetPart then
-            -- Subtle, slow camera movement
-            local currentCF = CurrentCamera.CFrame
-            local targetPosition = targetPart.Position + Vector3.new(
-                math.random(-0.5, 0.5),  -- Add randomness
-                math.random(0, 1),
-                math.random(-0.5, 0.5)
-            )
-            
-            local newCF = currentCF:Lerp(
-                CFrame.lookAt(currentCF.Position, targetPosition),
-                0.1  -- Very slow interpolation
-            )
-            CurrentCamera.CFrame = newCF
+    -- Aimbot logic
+    if AimbotEnabled and isMobile then
+        local target = getClosestEnemyToCenter()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = target.Character.HumanoidRootPart
+            local newCFrame = CFrame.new(Camera.CFrame.Position, hrp.Position)
+            Camera.CFrame = newCFrame
         end
     end
 end)
 
--- Clean up on script termination
-game:GetService("ScriptContext").DescendantRemoving:Connect(function(descendant)
-    if descendant == script then
-        VisualAssistFolder:Destroy()
-    end
+-- Clean up when GUI closes
+Window:Destroyed(function()
+    -- Disable everything
+    ESPEnabled = false
+    AimbotEnabled = false
+    SilentAimEnabled = false
+    FOVCircleVisible = false
+    
+    -- Clean up ESP
+    disableESP()
+    ESPFolder:Destroy()
+    
+    -- Clean up FOV Circle
+    FOVCircle:Remove()
+    
+    print("Jalbird GUI closed - All features disabled")
 end)
 
-print("Game tools loaded successfully")
+print("Jalbird ESP & Aim loaded successfully!")
+print("Use the GUI toggles to enable features")
+print("ESP: Toggle player boxes")
+print("Aimbot: Mobile camera assist") 
+print("Silent Aim: PC hitbox adjustment")
+print("FOV Circle: Shows aim radius")
