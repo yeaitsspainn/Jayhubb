@@ -1,127 +1,137 @@
--- Jalbird ESP & Aim with GUI Controls
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "Jalbird ESP & Aim",
-    LoadingTitle = "Loading Jalbird script",
-    LoadingSubtitle = "by Haxzo",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "JalbirdConfig",
-        FileName = "Settings"
-    },
-    Discord = {
-        Enabled = false,
-        Invite = "",
-        RememberJoins = true
-    },
-    KeySystem = false,
-    KeySettings = {
-        Title = "Jalbird Key System",
-        Subtitle = "Key System",
-        Note = "No key required",
-        FileName = "KeyFile",
-        SaveKey = true,
-        GrabKeyFromSite = false,
-        Key = ""
-    }
-})
-
+-- Simple Jalbird ESP & Aim GUI
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
 
 -- Settings (all disabled by default)
 local ESPEnabled = false
 local AimbotEnabled = false
-local SilentAimEnabled = false
 local FOV = 100
 local FOVCircleVisible = false
 
--- ESP System (disabled until toggled)
-local ESPFolder = Instance.new("Folder", game.CoreGui)
-ESPFolder.Name = "JalbirdESP"
+-- Create Simple GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "JalbirdGUI"
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- FOV Circle
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Color = Color3.new(1, 1, 0)
-FOVCircle.Thickness = 1
-FOVCircle.Filled = false
-FOVCircle.Radius = FOV
-FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 300, 0, 400)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- Styling
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(100, 80, 200)
+stroke.Thickness = 2
+stroke.Parent = mainFrame
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 50)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 80)
+title.Text = "Jalbird ESP & Aim"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 18
+title.Font = Enum.Font.SourceSansBold
+title.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = title
 
 -- ESP Toggle
-local ESPToggle = Window:CreateToggle({
-    Name = "ESP",
-    CurrentValue = false,
-    Flag = "ESPToggle",
-    Callback = function(value)
-        ESPEnabled = value
-        if value then
-            enableESP()
-        else
-            disableESP()
-        end
-    end
-})
+local espButton = Instance.new("TextButton")
+espButton.Size = UDim2.new(0.8, 0, 0, 40)
+espButton.Position = UDim2.new(0.1, 0, 0.2, 0)
+espButton.BackgroundColor3 = Color3.fromRGB(200, 60, 80)
+espButton.Text = "ESP: OFF"
+espButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+espButton.TextSize = 16
+espButton.Font = Enum.Font.SourceSansBold
+espButton.Parent = mainFrame
+
+local espCorner = Instance.new("UICorner")
+espCorner.CornerRadius = UDim.new(0, 6)
+espCorner.Parent = espButton
 
 -- Aimbot Toggle
-local AimbotToggle = Window:CreateToggle({
-    Name = "Aimbot (Mobile)",
-    CurrentValue = false,
-    Flag = "AimbotToggle",
-    Callback = function(value)
-        AimbotEnabled = value
-        if value then
-            SilentAimEnabled = false
-            SilentAimToggle.Set(false)
-        end
-    end
-})
+local aimbotButton = Instance.new("TextButton")
+aimbotButton.Size = UDim2.new(0.8, 0, 0, 40)
+aimbotButton.Position = UDim2.new(0.1, 0, 0.35, 0)
+aimbotButton.BackgroundColor3 = Color3.fromRGB(200, 60, 80)
+aimbotButton.Text = "Aimbot: OFF"
+aimbotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimbotButton.TextSize = 16
+aimbotButton.Font = Enum.Font.SourceSansBold
+aimbotButton.Parent = mainFrame
 
--- Silent Aim Toggle
-local SilentAimToggle = Window:CreateToggle({
-    Name = "Silent Aim (PC)",
-    CurrentValue = false,
-    Flag = "SilentAimToggle",
-    Callback = function(value)
-        SilentAimEnabled = value
-        if value then
-            AimbotEnabled = false
-            AimbotToggle.Set(false)
-        end
-    end
-})
+local aimbotCorner = Instance.new("UICorner")
+aimbotCorner.CornerRadius = UDim.new(0, 6)
+aimbotCorner.Parent = aimbotButton
 
 -- FOV Circle Toggle
-local FOVCircleToggle = Window:CreateToggle({
-    Name = "Show FOV Circle",
-    CurrentValue = false,
-    Flag = "FOVCircleToggle",
-    Callback = function(value)
-        FOVCircleVisible = value
-        FOVCircle.Visible = value
-    end
-})
+local fovToggleButton = Instance.new("TextButton")
+fovToggleButton.Size = UDim2.new(0.8, 0, 0, 40)
+fovToggleButton.Position = UDim2.new(0.1, 0, 0.5, 0)
+fovToggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+fovToggleButton.Text = "FOV Circle: OFF"
+fovToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+fovToggleButton.TextSize = 14
+fovToggleButton.Font = Enum.Font.SourceSansBold
+fovToggleButton.Parent = mainFrame
+
+local fovToggleCorner = Instance.new("UICorner")
+fovToggleCorner.CornerRadius = UDim.new(0, 6)
+fovToggleCorner.Parent = fovToggleButton
 
 -- FOV Slider
-local FOVSlider = Window:CreateSlider({
-    Name = "FOV Size",
-    Range = {10, 300},
-    Increment = 10,
-    Suffix = "units",
-    CurrentValue = 100,
-    Flag = "FOVSlider",
-    Callback = function(value)
-        FOV = value
-        FOVCircle.Radius = value
-    end
-})
+local fovLabel = Instance.new("TextLabel")
+fovLabel.Size = UDim2.new(0.8, 0, 0, 30)
+fovLabel.Position = UDim2.new(0.1, 0, 0.65, 0)
+fovLabel.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+fovLabel.Text = "FOV Size: " .. FOV
+fovLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+fovLabel.TextSize = 14
+fovLabel.Font = Enum.Font.SourceSansBold
+fovLabel.Parent = mainFrame
 
--- ESP Functions
+local fovLabelCorner = Instance.new("UICorner")
+fovLabelCorner.CornerRadius = UDim.new(0, 6)
+fovLabelCorner.Parent = fovLabel
+
+-- Close Button
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0.8, 0, 0, 40)
+closeButton.Position = UDim2.new(0.1, 0, 0.8, 0)
+closeButton.BackgroundColor3 = Color3.fromRGB(150, 60, 60)
+closeButton.Text = "CLOSE GUI"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 16
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
+
+-- ESP System
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "JalbirdESP"
+ESPFolder.Parent = game.CoreGui
+
 local ESPBoxes = {}
 
 local function createESP(player)
@@ -143,8 +153,6 @@ local function createESP(player)
         if ESPEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
             espBox.Adornee = player.Character.HumanoidRootPart
             espBox.Size = Vector3.new(4, player.Character.HumanoidRootPart.Size.Y * 2, 4)
-            espBox.Color3 = Color3.new(1, 0, 0)
-            espBox.Transparency = 0.5
             espBox.Visible = true
         else
             espBox.Visible = false
@@ -156,6 +164,7 @@ local function createESP(player)
 end
 
 local function enableESP()
+    ESPEnabled = true
     for player, espBox in pairs(ESPBoxes) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             espBox.Visible = true
@@ -164,6 +173,7 @@ local function enableESP()
 end
 
 local function disableESP()
+    ESPEnabled = false
     for player, espBox in pairs(ESPBoxes) do
         espBox.Visible = false
         espBox.Adornee = nil
@@ -179,36 +189,15 @@ Players.PlayerAdded:Connect(function(player)
     createESP(player)
 end)
 
-Players.PlayerRemoving:Connect(function(player)
-    if ESPBoxes[player] then
-        ESPBoxes[player]:Destroy()
-        ESPBoxes[player] = nil
-    end
-end)
+-- FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Color = Color3.new(1, 1, 0)
+FOVCircle.Thickness = 1
+FOVCircle.Filled = false
+FOVCircle.Radius = FOV
 
 -- Aimbot Functions
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-
-local function getClosestEnemyToCursor()
-    local closestPlayer = nil
-    local shortestDistance = FOV
-    local mouseLocation = UserInputService:GetMouseLocation()
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
-            if onScreen then
-                local distance = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouseLocation.X, mouseLocation.Y)).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestPlayer = player
-                end
-            end
-        end
-    end
-    return closestPlayer
-end
-
 local function getClosestEnemyToCenter()
     local closestPlayer = nil
     local shortestDistance = FOV
@@ -229,30 +218,55 @@ local function getClosestEnemyToCenter()
     return closestPlayer
 end
 
--- Silent Aim Hook (PC)
-local mt = getrawmetatable(game)
-local oldIndex = mt.__index
-setreadonly(mt, false)
-
-mt.__index = newcclosure(function(self, key)
-    if SilentAimEnabled and key == "Hit" and self == workspace.CurrentCamera then
-        local target = getClosestEnemyToCursor()
-        if target and target.Character and target.Character:FindFirstChild("Head") then
-            return target.Character.Head
-        end
+-- Button Functions
+espButton.MouseButton1Click:Connect(function()
+    ESPEnabled = not ESPEnabled
+    espButton.Text = ESPEnabled and "ESP: ON" or "ESP: OFF"
+    espButton.BackgroundColor3 = ESPEnabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
+    
+    if ESPEnabled then
+        enableESP()
+    else
+        disableESP()
     end
-    return oldIndex(self, key)
 end)
 
-setreadonly(mt, true)
+aimbotButton.MouseButton1Click:Connect(function()
+    AimbotEnabled = not AimbotEnabled
+    aimbotButton.Text = AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+    aimbotButton.BackgroundColor3 = AimbotEnabled and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 60, 80)
+end)
 
--- Aimbot for Mobile
+fovToggleButton.MouseButton1Click:Connect(function()
+    FOVCircleVisible = not FOVCircleVisible
+    fovToggleButton.Text = FOVCircleVisible and "FOV Circle: ON" or "FOV Circle: OFF"
+    fovToggleButton.BackgroundColor3 = FOVCircleVisible and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(80, 80, 120)
+    FOVCircle.Visible = FOVCircleVisible
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+    FOVCircle:Remove()
+    disableESP()
+end)
+
+-- FOV Slider Controls
+fovLabel.MouseButton1Click:Connect(function()
+    FOV = FOV + 20
+    if FOV > 300 then
+        FOV = 50
+    end
+    FOVCircle.Radius = FOV
+    fovLabel.Text = "FOV Size: " .. FOV
+end)
+
+-- Main Loop
 RunService.RenderStepped:Connect(function()
     -- Update FOV Circle position
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
     -- Aimbot logic
-    if AimbotEnabled and isMobile then
+    if AimbotEnabled then
         local target = getClosestEnemyToCenter()
         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = target.Character.HumanoidRootPart
@@ -262,27 +276,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Clean up when GUI closes
-Window:Destroyed(function()
-    -- Disable everything
-    ESPEnabled = false
-    AimbotEnabled = false
-    SilentAimEnabled = false
-    FOVCircleVisible = false
-    
-    -- Clean up ESP
-    disableESP()
-    ESPFolder:Destroy()
-    
-    -- Clean up FOV Circle
-    FOVCircle:Remove()
-    
-    print("Jalbird GUI closed - All features disabled")
-end)
-
 print("Jalbird ESP & Aim loaded successfully!")
-print("Use the GUI toggles to enable features")
-print("ESP: Toggle player boxes")
-print("Aimbot: Mobile camera assist") 
-print("Silent Aim: PC hitbox adjustment")
-print("FOV Circle: Shows aim radius")
+print("GUI should be visible on screen")
+print("Click buttons to toggle features")
