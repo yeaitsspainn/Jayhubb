@@ -123,6 +123,18 @@ ESPToggle.Font = Enum.Font.Gotham
 ESPToggle.TextSize = 14
 ESPToggle.Parent = ContentFrame
 
+-- FOV Circle Toggle
+local FOVCircleToggle = Instance.new("TextButton")
+FOVCircleToggle.Name = "FOVCircleToggle"
+FOVCircleToggle.Size = UDim2.new(1, 0, 0, 35)
+FOVCircleToggle.Position = UDim2.new(0, 0, 0, 145)
+FOVCircleToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+FOVCircleToggle.Text = "FOV Circle: OFF"
+FOVCircleToggle.TextColor3 = Color3.fromRGB(255, 100, 100)
+FOVCircleToggle.Font = Enum.Font.Gotham
+FOVCircleToggle.TextSize = 14
+FOVCircleToggle.Parent = ContentFrame
+
 -- FOV Slider
 local FOVLabel = Instance.new("TextLabel")
 FOVLabel.Name = "FOVLabel"
@@ -166,6 +178,7 @@ local buttonCorner = Instance.new("UICorner")
 buttonCorner.CornerRadius = UDim.new(0, 6)
 buttonCorner.Parent = SilentAimToggle
 buttonCorner:Clone().Parent = ESPToggle
+buttonCorner:Clone().Parent = FOVCircleToggle
 buttonCorner:Clone().Parent = FOVSlider
 
 local fillCorner = Instance.new("UICorner")
@@ -325,8 +338,47 @@ end)
 -- Configuration
 local SilentAimEnabled = false
 local ESPEnabled = false
+local FOVCircleEnabled = false
 local AimFOV = 100
 local AimPartName = "Head"
+
+-- FOV Circle Drawing
+local FOVCircle = nil
+local function CreateFOVCircle()
+    if FOVCircle then
+        FOVCircle:Remove()
+    end
+    
+    FOVCircle = Drawing.new("Circle")
+    FOVCircle.Visible = FOVCircleEnabled
+    FOVCircle.Radius = AimFOV
+    FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+    FOVCircle.Thickness = 2
+    FOVCircle.Filled = false
+    FOVCircle.Transparency = 1
+    
+    if isMobile() then
+        -- Stationary circle at screen center for mobile
+        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    else
+        -- Mouse-following circle for PC
+        local mousePos = UserInputService:GetMouseLocation()
+        FOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+    end
+end
+
+-- Update FOV Circle position (PC only)
+local function UpdateFOVCircle()
+    if not FOVCircle or not FOVCircleEnabled then return end
+    
+    if not isMobile() then
+        -- Update circle position to follow mouse (PC only)
+        local mousePos = UserInputService:GetMouseLocation()
+        FOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+    end
+    -- Update circle radius based on FOV slider
+    FOVCircle.Radius = AimFOV
+end
 
 -- Mobile shooting detection
 local IsShooting = false
@@ -569,6 +621,11 @@ RunService.RenderStepped:Connect(function()
             if esp.Name then esp.Name.Visible = false end
         end
     end
+    
+    -- Update FOV Circle
+    if FOVCircleEnabled then
+        UpdateFOVCircle()
+    end
 end)
 
 -- UI Toggle Functions
@@ -599,6 +656,21 @@ ESPToggle.MouseButton1Click:Connect(function()
     end
 end)
 
+FOVCircleToggle.MouseButton1Click:Connect(function()
+    FOVCircleEnabled = not FOVCircleEnabled
+    if FOVCircleEnabled then
+        FOVCircleToggle.Text = "FOV Circle: ON"
+        FOVCircleToggle.TextColor3 = Color3.fromRGB(100, 255, 100)
+        CreateFOVCircle()
+    else
+        FOVCircleToggle.Text = "FOV Circle: OFF"
+        FOVCircleToggle.TextColor3 = Color3.fromRGB(255, 100, 100)
+        if FOVCircle then
+            FOVCircle.Visible = false
+        end
+    end
+end)
+
 -- Fixed FOV Slider Functionality
 local isSliding = false
 local slideConnection = nil
@@ -615,6 +687,11 @@ local function updateFOVSlider()
     AimFOV = math.floor(50 + relativeX * 150) -- Range: 50-200
     FOVLabel.Text = "Aim FOV: " .. AimFOV
     FOVValue.Text = tostring(AimFOV)
+    
+    -- Update FOV Circle radius if enabled
+    if FOVCircle and FOVCircleEnabled then
+        FOVCircle.Radius = AimFOV
+    end
 end
 
 FOVSlider.InputBegan:Connect(function(input)
