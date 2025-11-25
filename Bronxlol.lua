@@ -1,6 +1,3 @@
---[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
 if getgenv().loaded then 
     return
 end 
@@ -20,7 +17,7 @@ StarterGui:SetCore("SendNotification", {
 task.wait(8)
 StarterGui:SetCore("SendNotification", {
     Title = "❗",
-    Text = "leaked by .gg/sleepyhub if you dont listen to king vyylora you gotta face the consequences",
+    Text = "script made by HAXZO",
     Duration = 8, -- seconds the notification stays on screen
     Button1 = "Got it"
 })
@@ -737,6 +734,64 @@ local Config = {
         Fonts = {};
     };
 };
+
+-- Walkspeed implementation
+local function ApplyWalkspeed()
+    if Config.MiscSettings.ModifySpeed.Enabled then
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = Config.MiscSettings.ModifySpeed.Value
+        end
+    end
+end
+
+-- Walkspeed connection
+local walkspeedConnection
+if Config.MiscSettings.ModifySpeed.Enabled then
+    walkspeedConnection = RunService.Heartbeat:Connect(function()
+        ApplyWalkspeed()
+    end)
+end
+
+-- Function to toggle walkspeed
+local function ToggleWalkspeed(enabled)
+    Config.MiscSettings.ModifySpeed.Enabled = enabled
+    if enabled then
+        if not walkspeedConnection then
+            walkspeedConnection = RunService.Heartbeat:Connect(ApplyWalkspeed)
+        end
+        ApplyWalkspeed()
+    else
+        if walkspeedConnection then
+            walkspeedConnection:Disconnect()
+            walkspeedConnection = nil
+        end
+        -- Reset to default walkspeed
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = 16 -- Default Roblox walkspeed
+        end
+    end
+end
+
+-- Character added event to reapply walkspeed when respawning
+LocalPlayer.CharacterAdded:Connect(function()
+    if Config.MiscSettings.ModifySpeed.Enabled then
+        task.wait(0.5) -- Wait for character to fully load
+        ApplyWalkspeed()
+    end
+end)
+
+-- Initial application
+if Config.MiscSettings.ModifySpeed.Enabled then
+    ApplyWalkspeed()
+end
+
+-- End of script
+print("Script loaded successfully!")--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+
 
 --[[if not Solara and Game_Name == "The Bronx" then
     local DTC;
