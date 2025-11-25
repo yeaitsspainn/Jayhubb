@@ -328,6 +328,10 @@ local ESPEnabled = false
 local AimFOV = 100
 local AimPartName = "Head"
 
+-- Mobile shooting detection
+local IsShooting = false
+local LastTouchPosition = nil
+
 -- Utility functions
 local function GetClosestTarget()
     local closestTarget = nil
@@ -337,8 +341,16 @@ local function GetClosestTarget()
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(AimPartName) and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
             local targetPos, onScreen = Camera:WorldToViewportPoint(player.Character[AimPartName].Position)
             if onScreen then
-                local mousePos = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(targetPos.X, targetPos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+                local inputPos
+                if isMobile() and LastTouchPosition then
+                    -- Use last touch position for mobile
+                    inputPos = LastTouchPosition
+                else
+                    -- Use mouse position for PC
+                    inputPos = UserInputService:GetMouseLocation()
+                end
+                
+                local distance = (Vector2.new(targetPos.X, targetPos.Y) - Vector2.new(inputPos.X, inputPos.Y)).Magnitude
                 if distance < shortestDistance then
                     shortestDistance = distance
                     closestTarget = player
@@ -350,7 +362,65 @@ local function GetClosestTarget()
     return closestTarget
 end
 
--- Silent Aim Hook
+-- Mobile touch input handling for shooting
+if isMobile() then
+    -- Track touch positions for mobile aiming
+    UserInputService.TouchStarted:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        LastTouchPosition = input.Position
+    end)
+    
+    UserInputService.TouchMoved:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        LastTouchPosition = input.Position
+    end)
+    
+    -- Detect mobile shooting (long press or specific gesture)
+    local shootConnection
+    UserInputService.TouchStarted:Connect(function(input, gameProcessed)
+        if gameProcessed or not SilentAimEnabled then return end
+        
+        -- Start tracking for shoot detection (long press)
+        local touchTime = tick()
+        local touchPosition = input.Position
+        LastTouchPosition = touchPosition
+        
+        shootConnection = RunService.Heartbeat:Connect(function()
+            -- If touch is held for more than 0.1 seconds, consider it shooting
+            if tick() - touchTime > 0.1 and not IsShooting then
+                IsShooting = true
+                -- Trigger silent aim for mobile
+                local target = GetClosestTarget()
+                if target and target.Character and target.Character:FindFirstChild(AimPartName) then
+                    -- Mobile shooting logic would go here
+                    -- This would depend on the specific game's mobile shooting mechanism
+                end
+            end
+        end)
+    end)
+    
+    UserInputService.TouchEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        IsShooting = false
+        if shootConnection then
+            shootConnection:Disconnect()
+            shootConnection = nil
+        end
+    end)
+end
+
+-- Universal shooting detection (works for both PC and mobile)
+local function handleShooting()
+    if not SilentAimEnabled then return end
+    
+    local target = GetClosestTarget()
+    if target and target.Character and target.Character:FindFirstChild(AimPartName) then
+        return target.Character[AimPartName].Position
+    end
+    return nil
+end
+
+-- Silent Aim Hook (Universal for PC and Mobile)
 local mt = getrawmetatable or getmetatable
 local oldNamecall
 if mt then
@@ -361,11 +431,20 @@ if mt then
         local method = getnamecallmethod()
         local args = {...}
 
-        if SilentAimEnabled and method == "FireServer" and tostring(self) == "ShootEvent" then
-            local target = GetClosestTarget()
-            if target and target.Character and target.Character:FindFirstChild(AimPartName) then
-                args[1] = target.Character[AimPartName].Position
-                return oldNamecall(self, unpack(args))
+        if SilentAimEnabled and method == "FireServer" then
+            -- Check for common shooting event names
+            local eventName = tostring(self)
+            if eventName == "ShootEvent" or eventName == "RemoteEvent" or eventName:find("Shoot") or eventName:find("Fire") then
+                local targetPos = handleShooting()
+                if targetPos then
+                    -- Modify the shooting position to target position
+                    if args[1] and typeof(args[1]) == "Vector3" then
+                        args[1] = targetPos
+                    elseif args[1] and typeof(args[1]) == "table" and args[1].Position then
+                        args[1].Position = targetPos
+                    end
+                    return oldNamecall(self, unpack(args))
+                end
             end
         end
 
@@ -373,6 +452,39 @@ if mt then
     end)
     setreadonly(meta, true)
 end
+
+-- Alternative method for games that don't use RemoteEvents
+local function setupMobileShooting()
+    if not isMobile() then return end
+    
+    -- Create a virtual shoot button for mobile if needed
+    local virtualShootButton = Instance.new("TextButton")
+    virtualShootButton.Name = "VirtualShootBtn"
+    virtualShootButton.Size = UDim2.new(0, 80, 0, 80)
+    virtualShootButton.Position = UDim2.new(1, -100, 1, -100)
+    virtualShootButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    virtualShootButton.BackgroundTransparency = 0.5
+    virtualShootButton.Text = "SHOOT"
+    virtualShootButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    virtualShootButton.TextSize = 14
+    virtualShootButton.Font = Enum.Font.GothamBold
+    virtualShootButton.Visible = false
+    virtualShootButton.Parent = ScreenGui
+    
+    local virtualCorner = Instance.new("UICorner")
+    virtualCorner.CornerRadius = UDim.new(0, 40)
+    virtualCorner.Parent = virtualShootButton
+    
+    -- Show virtual shoot button when silent aim is enabled on mobile
+    SilentAimToggle.MouseButton1Click:Connect(function()
+        if isMobile() then
+            virtualShootButton.Visible = SilentAimEnabled
+        end
+    end)
+end
+
+-- Initialize mobile shooting
+setupMobileShooting()
 
 -- ESP Implementation
 local espFolder = Instance.new("Folder", Camera)
@@ -532,3 +644,4 @@ end)
 
 print("NAMELESS HUB Loaded")
 print("Made by Haxzo")
+print("Mobile Support: " .. tostring(isMobile()))
