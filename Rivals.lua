@@ -14,8 +14,8 @@ ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 400, 0, 350)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -175)
+MainFrame.Size = UDim2.new(0, 400, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -200)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -59,6 +59,19 @@ Subtitle.TextScaled = true
 Subtitle.Font = Enum.Font.Gotham
 Subtitle.Parent = Header
 
+-- Mobile Toggle Button (Top Right)
+local MobileToggle = Instance.new("TextButton")
+MobileToggle.Name = "MobileToggle"
+MobileToggle.Size = UDim2.new(0, 80, 0, 25)
+MobileToggle.Position = UDim2.new(1, -85, 0, 5)
+MobileToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+MobileToggle.Text = "MOBILE"
+MobileToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+MobileToggle.TextScaled = true
+MobileToggle.Font = Enum.Font.Gotham
+MobileToggle.Visible = false -- Hidden by default, shows on mobile
+MobileToggle.Parent = Header
+
 -- Content Frame
 local ContentFrame = Instance.new("Frame")
 ContentFrame.Name = "ContentFrame"
@@ -70,29 +83,31 @@ ContentFrame.Parent = MainFrame
 -- Toggle Buttons
 local SilentAimToggle = Instance.new("TextButton")
 SilentAimToggle.Name = "SilentAimToggle"
-SilentAimToggle.Size = UDim2.new(1, 0, 0, 30)
+SilentAimToggle.Size = UDim2.new(1, 0, 0, 35)
 SilentAimToggle.Position = UDim2.new(0, 0, 0, 10)
 SilentAimToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
 SilentAimToggle.Text = "Silent Aim: OFF"
 SilentAimToggle.TextColor3 = Color3.fromRGB(255, 100, 100)
 SilentAimToggle.Font = Enum.Font.Gotham
+SilentAimToggle.TextSize = 14
 SilentAimToggle.Parent = ContentFrame
 
 local ESPToggle = Instance.new("TextButton")
 ESPToggle.Name = "ESPToggle"
-ESPToggle.Size = UDim2.new(1, 0, 0, 30)
-ESPToggle.Position = UDim2.new(0, 0, 0, 50)
+ESPToggle.Size = UDim2.new(1, 0, 0, 35)
+ESPToggle.Position = UDim2.new(0, 0, 0, 55)
 ESPToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
 ESPToggle.Text = "ESP: OFF"
 ESPToggle.TextColor3 = Color3.fromRGB(255, 100, 100)
 ESPToggle.Font = Enum.Font.Gotham
+ESPToggle.TextSize = 14
 ESPToggle.Parent = ContentFrame
 
 -- FOV Slider
 local FOVLabel = Instance.new("TextLabel")
 FOVLabel.Name = "FOVLabel"
 FOVLabel.Size = UDim2.new(1, 0, 0, 20)
-FOVLabel.Position = UDim2.new(0, 0, 0, 90)
+FOVLabel.Position = UDim2.new(0, 0, 0, 100)
 FOVLabel.BackgroundTransparency = 1
 FOVLabel.Text = "Aim FOV: 100"
 FOVLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -102,10 +117,11 @@ FOVLabel.Parent = ContentFrame
 
 local FOVSlider = Instance.new("TextButton")
 FOVSlider.Name = "FOVSlider"
-FOVSlider.Size = UDim2.new(1, 0, 0, 20)
-FOVSlider.Position = UDim2.new(0, 0, 0, 110)
-FOVSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+FOVSlider.Size = UDim2.new(1, 0, 0, 25)
+FOVSlider.Position = UDim2.new(0, 0, 0, 125)
+FOVSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
 FOVSlider.Text = ""
+FOVSlider.AutoButtonColor = false
 FOVSlider.Parent = ContentFrame
 
 local FOVFill = Instance.new("Frame")
@@ -115,26 +131,38 @@ FOVFill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
 FOVFill.BorderSizePixel = 0
 FOVFill.Parent = FOVSlider
 
+local FOVValue = Instance.new("TextLabel")
+FOVValue.Name = "FOVValue"
+FOVValue.Size = UDim2.new(1, 0, 1, 0)
+FOVValue.BackgroundTransparency = 1
+FOVValue.Text = "100"
+FOVValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+FOVValue.TextSize = 14
+FOVValue.Font = Enum.Font.GothamBold
+FOVValue.Parent = FOVSlider
+
 local CloseButton = Instance.new("TextButton")
 CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 100, 0, 30)
-CloseButton.Position = UDim2.new(0.5, -50, 1, -40)
+CloseButton.Size = UDim2.new(0, 100, 0, 35)
+CloseButton.Position = UDim2.new(0.5, -50, 1, -45)
 CloseButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
 CloseButton.Text = "Close"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.Gotham
+CloseButton.TextSize = 14
 CloseButton.Parent = ContentFrame
 
 -- Style buttons
 local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 4)
+buttonCorner.CornerRadius = UDim.new(0, 6)
 buttonCorner.Parent = SilentAimToggle
 buttonCorner:Clone().Parent = ESPToggle
 buttonCorner:Clone().Parent = FOVSlider
 buttonCorner:Clone().Parent = CloseButton
+buttonCorner:Clone().Parent = MobileToggle
 
 local fillCorner = Instance.new("UICorner")
-fillCorner.CornerRadius = UDim.new(0, 4)
+fillCorner.CornerRadius = UDim.new(0, 6)
 fillCorner.Parent = FOVFill
 
 -- Snowflake Animation System
@@ -205,6 +233,30 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
+-- Mobile detection and toggle
+local function isMobile()
+    return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+end
+
+-- Show mobile toggle if on mobile
+if isMobile() then
+    MobileToggle.Visible = true
+end
+
+-- Mobile toggle functionality
+local UIVisible = true
+MobileToggle.MouseButton1Click:Connect(function()
+    UIVisible = not UIVisible
+    ContentFrame.Visible = UIVisible
+    if UIVisible then
+        MobileToggle.Text = "HIDE"
+        MobileToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    else
+        MobileToggle.Text = "SHOW"
+        MobileToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    end
+end)
+
 -- Make UI draggable
 local dragging = false
 local dragInput
@@ -222,7 +274,7 @@ local function update(input)
 end
 
 Header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = MainFrame.Position
@@ -236,7 +288,7 @@ Header.InputBegan:Connect(function(input)
 end)
 
 Header.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
+    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         dragInput = input
     end
 end)
@@ -413,29 +465,47 @@ ESPToggle.MouseButton1Click:Connect(function()
     end
 end)
 
--- FOV Slider Functionality
-FOVSlider.MouseButton1Down:Connect(function()
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        local mousePos = UserInputService:GetMouseLocation()
-        local sliderPos = FOVSlider.AbsolutePosition
-        local sliderSize = FOVSlider.AbsoluteSize
-        local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+-- Fixed FOV Slider Functionality
+local isSliding = false
+local slideConnection = nil
+
+local function updateFOVSlider()
+    if not isSliding then return end
+    
+    local mousePos = UserInputService:GetMouseLocation()
+    local sliderPos = FOVSlider.AbsolutePosition
+    local sliderSize = FOVSlider.AbsoluteSize
+    local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+    
+    FOVFill.Size = UDim2.new(relativeX, 0, 1, 0)
+    AimFOV = math.floor(50 + relativeX * 150) -- Range: 50-200
+    FOVLabel.Text = "Aim FOV: " .. AimFOV
+    FOVValue.Text = tostring(AimFOV)
+end
+
+FOVSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isSliding = true
         
-        FOVFill.Size = UDim2.new(relativeX, 0, 1, 0)
-        AimFOV = math.floor(50 + relativeX * 150) -- Range: 50-200
-        FOVLabel.Text = "Aim FOV: " .. AimFOV
-    end)
-    
-    local function disconnect()
-        connection:Disconnect()
-    end
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            disconnect()
+        -- Connect to RenderStepped for smooth updates
+        if slideConnection then
+            slideConnection:Disconnect()
         end
-    end)
+        slideConnection = RunService.RenderStepped:Connect(updateFOVSlider)
+        
+        -- Update immediately on click
+        updateFOVSlider()
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isSliding then
+        isSliding = false
+        if slideConnection then
+            slideConnection:Disconnect()
+            slideConnection = nil
+        end
+    end
 end)
 
 print("NAMELESS HUB Loaded")
