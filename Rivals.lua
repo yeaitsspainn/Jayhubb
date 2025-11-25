@@ -11,6 +11,23 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "NamelessHubUI"
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+-- Mobile Toggle Button (Always visible on mobile)
+local MobileToggleButton = Instance.new("TextButton")
+MobileToggleButton.Name = "MobileToggleButton"
+MobileToggleButton.Size = UDim2.new(0, 80, 0, 40)
+MobileToggleButton.Position = UDim2.new(0, 10, 0, 10)
+MobileToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+MobileToggleButton.Text = "OPEN"
+MobileToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MobileToggleButton.TextSize = 14
+MobileToggleButton.Font = Enum.Font.GothamBold
+MobileToggleButton.Visible = false
+MobileToggleButton.Parent = ScreenGui
+
+local MobileToggleCorner = Instance.new("UICorner")
+MobileToggleCorner.CornerRadius = UDim.new(0, 8)
+MobileToggleCorner.Parent = MobileToggleButton
+
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -59,18 +76,21 @@ Subtitle.TextScaled = true
 Subtitle.Font = Enum.Font.Gotham
 Subtitle.Parent = Header
 
--- Mobile Toggle Button (Top Right)
-local MobileToggle = Instance.new("TextButton")
-MobileToggle.Name = "MobileToggle"
-MobileToggle.Size = UDim2.new(0, 80, 0, 25)
-MobileToggle.Position = UDim2.new(1, -85, 0, 5)
-MobileToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-MobileToggle.Text = "MOBILE"
-MobileToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-MobileToggle.TextScaled = true
-MobileToggle.Font = Enum.Font.Gotham
-MobileToggle.Visible = false -- Hidden by default, shows on mobile
-MobileToggle.Parent = Header
+-- Close Button in Header
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 80, 0, 25)
+CloseButton.Position = UDim2.new(1, -85, 0, 7)
+CloseButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+CloseButton.Text = "CLOSE"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 12
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = Header
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseButton
 
 -- Content Frame
 local ContentFrame = Instance.new("Frame")
@@ -141,25 +161,12 @@ FOVValue.TextSize = 14
 FOVValue.Font = Enum.Font.GothamBold
 FOVValue.Parent = FOVSlider
 
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 100, 0, 35)
-CloseButton.Position = UDim2.new(0.5, -50, 1, -45)
-CloseButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-CloseButton.Text = "Close"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.Gotham
-CloseButton.TextSize = 14
-CloseButton.Parent = ContentFrame
-
 -- Style buttons
 local buttonCorner = Instance.new("UICorner")
 buttonCorner.CornerRadius = UDim.new(0, 6)
 buttonCorner.Parent = SilentAimToggle
 buttonCorner:Clone().Parent = ESPToggle
 buttonCorner:Clone().Parent = FOVSlider
-buttonCorner:Clone().Parent = CloseButton
-buttonCorner:Clone().Parent = MobileToggle
 
 local fillCorner = Instance.new("UICorner")
 fillCorner.CornerRadius = UDim.new(0, 6)
@@ -228,32 +235,47 @@ spawn(function()
     end
 end)
 
--- UI Interactions
-CloseButton.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
-
--- Mobile detection and toggle
+-- Mobile detection
 local function isMobile()
     return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 end
 
--- Show mobile toggle if on mobile
-if isMobile() then
-    MobileToggle.Visible = true
+-- UI Visibility Management
+local function setUIVisibility(visible)
+    MainFrame.Visible = visible
+    if isMobile() then
+        if visible then
+            MobileToggleButton.Text = "CLOSE"
+            MobileToggleButton.Position = UDim2.new(0, 10, 0, 10)
+        else
+            MobileToggleButton.Text = "OPEN"
+            MobileToggleButton.Position = UDim2.new(0, 10, 0, 10)
+        end
+    end
 end
 
--- Mobile toggle functionality
-local UIVisible = true
-MobileToggle.MouseButton1Click:Connect(function()
-    UIVisible = not UIVisible
-    ContentFrame.Visible = UIVisible
-    if UIVisible then
-        MobileToggle.Text = "HIDE"
-        MobileToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+-- Show mobile toggle if on mobile
+if isMobile() then
+    MobileToggleButton.Visible = true
+    -- Start with UI closed on mobile
+    setUIVisibility(false)
+else
+    -- Start with UI open on PC
+    setUIVisibility(true)
+end
+
+-- Mobile toggle button functionality
+MobileToggleButton.MouseButton1Click:Connect(function()
+    local currentlyVisible = MainFrame.Visible
+    setUIVisibility(not currentlyVisible)
+end)
+
+-- Close button functionality (inside the UI)
+CloseButton.MouseButton1Click:Connect(function()
+    if isMobile() then
+        setUIVisibility(false)
     else
-        MobileToggle.Text = "SHOW"
-        MobileToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        ScreenGui:Destroy()
     end
 end)
 
