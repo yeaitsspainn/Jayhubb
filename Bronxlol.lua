@@ -15987,3 +15987,6 @@ if hookfunction and not Solara and LPH_OBFUSCATED and Game_Name == "South Bronx"
         return _FireServer(self, ...)
     end)
 end
+
+-- REMASTERED UI INSERT
+<REPLACED_UI_CODE>
