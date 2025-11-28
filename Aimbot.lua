@@ -1,6 +1,8 @@
 --[[
+
 	Universal Aimbot Module by Exunys © CC0 1.0 Universal (2023 - 2024)
 	https://github.com/Exunys
+
 ]]
 
 --// Cache
@@ -11,6 +13,8 @@ local Vector2new, Vector3zero, CFramenew, Color3fromRGB, Color3fromHSV, Drawingn
 local getupvalue, mousemoverel, tablefind, tableremove, stringlower, stringsub, mathclamp = debug.getupvalue, mousemoverel or (Input and Input.MouseMove), table.find, table.remove, string.lower, string.sub, math.clamp
 
 local GameMetatable = getrawmetatable and getrawmetatable(game) or {
+	-- Auxillary functions - if the executor doesn't support "getrawmetatable".
+
 	__index = function(self, Index)
 		return self[Index]
 	end,
@@ -33,7 +37,7 @@ local RunService = GetService(game, "RunService")
 local UserInputService = GetService(game, "UserInputService")
 local TweenService = GetService(game, "TweenService")
 local Players = GetService(game, "Players")
-local HttpService = GetService(game, "HttpService")
+local GuiService = GetService(game, "GuiService")
 
 --// Service Methods
 
@@ -51,6 +55,36 @@ local GetPlayers = __index(Players, "GetPlayers")
 
 local RequiredDistance, Typing, Running, ServiceConnections, Animation, OriginalSensitivity = 2000, false, false, {}
 local Connect, Disconnect = __index(game, "DescendantAdded").Connect
+
+--// Mobile Support Variables
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+local TouchInputFrame = nil
+local TouchStartPosition = nil
+local TouchCurrentPosition = nil
+local IsTouching = false
+
+--[[
+local Degrade = false
+
+do
+	xpcall(function()
+		local TemporaryDrawing = Drawingnew("Line")
+		getrenderproperty = getupvalue(getmetatable(TemporaryDrawing).__index, 4)
+		setrenderproperty = getupvalue(getmetatable(TemporaryDrawing).__newindex, 4)
+		TemporaryDrawing.Remove(TemporaryDrawing)
+	end, function()
+		Degrade, getrenderproperty, setrenderproperty = true, function(Object, Key)
+			return Object[Key]
+		end, function(Object, Key, Value)
+			Object[Key] = Value
+		end
+	end)
+
+	local TemporaryConnection = Connect(__index(game, "DescendantAdded"), function() end)
+	Disconnect = TemporaryConnection.Disconnect
+	Disconnect(TemporaryConnection)
+end
+]]
 
 --// Checking for multiple processes
 
@@ -84,7 +118,13 @@ getgenv().ExunysDeveloperAimbot = {
 		LockPart = "Head", -- Body part to lock on
 
 		TriggerKey = Enum.UserInputType.MouseButton2,
-		Toggle = false
+		Toggle = false,
+		
+		-- Mobile Settings
+		MobileTrigger = "Touch", -- "Touch", "Button", or "Both"
+		MobileButtonSize = 80,
+		MobileButtonPosition = Vector2new(50, 50),
+		MobileButtonTransparency = 0.5
 	},
 
 	FOVSettings = {
@@ -107,7 +147,13 @@ getgenv().ExunysDeveloperAimbot = {
 
 	Blacklisted = {},
 	FOVCircleOutline = Drawingnew("Circle"),
-	FOVCircle = Drawingnew("Circle")
+	FOVCircle = Drawingnew("Circle"),
+	
+	-- Mobile UI Elements
+	MobileUI = {
+		AimButton = nil,
+		AimButtonFrame = nil
+	}
 }
 
 local Environment = getgenv().ExunysDeveloperAimbot
@@ -144,7 +190,7 @@ end
 local CancelLock = function()
 	Environment.Locked = nil
 
-	local FOVCircle = Environment.FOVCircle
+	local FOVCircle = Environment.FOVCircle--Degrade and Environment.FOVCircle or Environment.FOVCircle.__OBJECT
 
 	setrenderproperty(FOVCircle, "Color", Environment.FOVSettings.Color)
 	__newindex(UserInputService, "MouseDeltaSensitivity", OriginalSensitivity)
@@ -190,415 +236,135 @@ local GetClosestPlayer = function()
 
 				local Vector, OnScreen, Distance = WorldToViewportPoint(Camera, PartPosition)
 				Vector = ConvertVector(Vector)
-				Distance = (GetMouseLocation(UserInputService) - Vector).Magnitude
+				
+				-- Use touch position for mobile, mouse position for desktop
+				local InputPosition = IsMobile and (TouchCurrentPosition or GetMouseLocation(UserInputService)) or GetMouseLocation(UserInputService)
+				Distance = (InputPosition - Vector).Magnitude
 
 				if Distance < RequiredDistance and OnScreen then
 					RequiredDistance, Environment.Locked = Distance, Value
 				end
 			end
 		end
-	elseif (GetMouseLocation(UserInputService) - ConvertVector(WorldToViewportPoint(Camera, __index(__index(__index(Environment.Locked, "Character"), LockPart), "Position")))).Magnitude > RequiredDistance then
-		CancelLock()
+	else
+		local LockedPosition = ConvertVector(WorldToViewportPoint(Camera, __index(__index(__index(Environment.Locked, "Character"), LockPart), "Position")))
+		local InputPosition = IsMobile and (TouchCurrentPosition or GetMouseLocation(UserInputService)) or GetMouseLocation(UserInputService)
+		
+		if (InputPosition - LockedPosition).Magnitude > RequiredDistance then
+			CancelLock()
+		end
 	end
 end
 
---// TXID UI Library Implementation
+--// Mobile Support Functions
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/WeebsMain/txid-ui-library/refs/heads/main/UI.lua"))()
-
-local Window = Library:Window({
-    Name = "KAINO HUB",
-    SubTitle = "KAINO STUDIOS",
-    ExpiresIn = "30d"
-})
-
-local CombatPage = Window:Page({Name = "Combat", Icon = "136879043989014"})
-local VisualsPage = Window:Page({Name = "Visuals", Icon = "136879043989014"})
-local PlayersPage = Window:Page({Name = "Players", Icon = "136879043989014"})
-local MiscPage = Window:Page({Name = "Misc", Icon = "136879043989014"})
-
-local AimbotSubPage = CombatPage:SubPage({Name = "Aimbot", Columns = 2})
-local VisualsSubPage = VisualsPage:SubPage({Name = "FOV Settings", Columns = 2})
-local PlayersSubPage = PlayersPage:SubPage({Name = "Player Management", Columns = 1})
-local SettingsSubPage = MiscPage:SubPage({Name = "Configuration", Columns = 1})
-
--- Combat Page - Aimbot Section
-local MainSection = AimbotSubPage:Section({
-    Name = "Main",
-    Icon = "136879043989014",
-    Side = 1
-})
-
-local AimbotSettingsSection = AimbotSubPage:Section({
-    Name = "Settings",
-    Icon = "72732892493295",
-    Side = 2
-})
-
--- Main Aimbot Toggle with Keybind and Colorpicker
-local AimbotToggle = MainSection:Toggle({
-    Name = "Enable Aimbot",
-    Flag = "Aimbot_Enabled",
-    Default = Environment.Settings.Enabled,
-    Callback = function(Value)
-        Environment.Settings.Enabled = Value
-    end
-})
-
-AimbotToggle:Colorpicker({
-    Flag = "Aimbot_Status_Color",
-    Default = Color3.fromRGB(0, 255, 0),
-    Callback = function(Color)
-        -- Status color for enabled state
-    end
-})
-
-AimbotToggle:Keybind({
-    Flag = "Aimbot_Keybind",
-    Default = Enum.KeyCode.E,
-    Mode = "Toggle",
-    Callback = function(Key)
-        Environment.Settings.TriggerKey = Key
-    end
-})
-
--- FOV Toggle
-local FOVToggle = MainSection:Toggle({
-    Name = "Show FOV Circle",
-    Flag = "FOV_Enabled",
-    Default = Environment.FOVSettings.Enabled,
-    Callback = function(Value)
-        Environment.FOVSettings.Enabled = Value
-        Environment.FOVSettings.Visible = Value
-    end
-})
-
--- Team Check
-local TeamCheckToggle = MainSection:Toggle({
-    Name = "Team Check",
-    Flag = "Team_Check",
-    Default = Environment.Settings.TeamCheck,
-    Callback = function(Value)
-        Environment.Settings.TeamCheck = Value
-    end
-})
-
--- Wall Check
-local WallCheckToggle = MainSection:Toggle({
-    Name = "Wall Check",
-    Flag = "Wall_Check",
-    Default = Environment.Settings.WallCheck,
-    Callback = function(Value)
-        Environment.Settings.WallCheck = Value
-    end
-})
-
--- Alive Check
-local AliveCheckToggle = MainSection:Toggle({
-    Name = "Alive Check",
-    Flag = "Alive_Check",
-    Default = Environment.Settings.AliveCheck,
-    Callback = function(Value)
-        Environment.Settings.AliveCheck = Value
-    end
-})
-
--- Toggle Mode
-local ToggleMode = MainSection:Toggle({
-    Name = "Toggle Mode",
-    Flag = "Toggle_Mode",
-    Default = Environment.Settings.Toggle,
-    Callback = function(Value)
-        Environment.Settings.Toggle = Value
-    end
-})
-
--- Aimbot Settings Section
-local FOVSlider = AimbotSettingsSection:Slider({
-    Name = "FOV Radius",
-    Flag = "FOV_Radius",
-    Min = 1,
-    Max = 500,
-    Default = Environment.FOVSettings.Radius,
-    Decimals = 0,
-    Suffix = "px",
-    Callback = function(Value)
-        Environment.FOVSettings.Radius = Value
-    end
-})
-
-local SmoothnessSlider = AimbotSettingsSection:Slider({
-    Name = "Smoothness",
-    Flag = "Smoothness",
-    Min = 0,
-    Max = 10,
-    Default = Environment.Settings.Sensitivity,
-    Decimals = 1,
-    Suffix = "s",
-    Callback = function(Value)
-        Environment.Settings.Sensitivity = Value
-    end
-})
-
-local MouseSensitivitySlider = AimbotSettingsSection:Slider({
-    Name = "Mouse Sensitivity",
-    Flag = "Mouse_Sensitivity",
-    Min = 0.1,
-    Max = 10,
-    Default = Environment.Settings.Sensitivity2,
-    Decimals = 1,
-    Suffix = "x",
-    Callback = function(Value)
-        Environment.Settings.Sensitivity2 = Value
-    end
-})
-
-local LockPartDropdown = AimbotSettingsSection:Dropdown({
-    Name = "Aim Part",
-    Flag = "Aim_Part",
-    Items = {"Head", "HumanoidRootPart", "Torso", "LeftHand", "RightHand"},
-    Default = Environment.Settings.LockPart,
-    Multi = false,
-    Callback = function(Value)
-        Environment.Settings.LockPart = Value
-    end
-})
-
-local LockModeDropdown = AimbotSettingsSection:Dropdown({
-    Name = "Aim Mode",
-    Flag = "Aim_Mode",
-    Items = {"CFrame", "Mouse"},
-    Default = Environment.Settings.LockMode == 1 and "CFrame" or "Mouse",
-    Multi = false,
-    Callback = function(Value)
-        Environment.Settings.LockMode = Value == "CFrame" and 1 or 2
-    end
-})
-
--- Visuals Page - FOV Settings
-local FOVColorsSection = VisualsSubPage:Section({
-    Name = "Colors",
-    Icon = "136879043989014",
-    Side = 1
-})
-
-local FOVAppearanceSection = VisualsSubPage:Section({
-    Name = "Appearance",
-    Icon = "72732892493295",
-    Side = 2
-})
-
--- FOV Colors
-local FOVColorPicker = FOVColorsSection:Colorpicker({
-    Name = "FOV Color",
-    Flag = "FOV_Color",
-    Default = Environment.FOVSettings.Color,
-    Callback = function(Color)
-        Environment.FOVSettings.Color = Color
-    end
-})
-
-local LockedColorPicker = FOVColorsSection:Colorpicker({
-    Name = "Locked Color",
-    Flag = "Locked_Color",
-    Default = Environment.FOVSettings.LockedColor,
-    Callback = function(Color)
-        Environment.FOVSettings.LockedColor = Color
-    end
-})
-
-local OutlineColorPicker = FOVColorsSection:Colorpicker({
-    Name = "Outline Color",
-    Flag = "Outline_Color",
-    Default = Environment.FOVSettings.OutlineColor,
-    Callback = function(Color)
-        Environment.FOVSettings.OutlineColor = Color
-    end
-})
-
--- Rainbow Toggles
-local RainbowFOVToggle = FOVColorsSection:Toggle({
-    Name = "Rainbow FOV",
-    Flag = "Rainbow_FOV",
-    Default = Environment.FOVSettings.RainbowColor,
-    Callback = function(Value)
-        Environment.FOVSettings.RainbowColor = Value
-    end
-})
-
-local RainbowOutlineToggle = FOVColorsSection:Toggle({
-    Name = "Rainbow Outline",
-    Flag = "Rainbow_Outline",
-    Default = Environment.FOVSettings.RainbowOutlineColor,
-    Callback = function(Value)
-        Environment.FOVSettings.RainbowOutlineColor = Value
-    end
-})
-
--- FOV Appearance
-local FOVThicknessSlider = FOVAppearanceSection:Slider({
-    Name = "FOV Thickness",
-    Flag = "FOV_Thickness",
-    Min = 1,
-    Max = 10,
-    Default = Environment.FOVSettings.Thickness,
-    Decimals = 0,
-    Suffix = "px",
-    Callback = function(Value)
-        Environment.FOVSettings.Thickness = Value
-    end
-})
-
-local FOVTransparencySlider = FOVAppearanceSection:Slider({
-    Name = "FOV Transparency",
-    Flag = "FOV_Transparency",
-    Min = 0,
-    Max = 1,
-    Default = Environment.FOVSettings.Transparency,
-    Decimals = 1,
-    Suffix = "",
-    Callback = function(Value)
-        Environment.FOVSettings.Transparency = Value
-    end
-})
-
-local FOVSidesSlider = FOVAppearanceSection:Slider({
-    Name = "FOV Sides",
-    Flag = "FOV_Sides",
-    Min = 3,
-    Max = 100,
-    Default = Environment.FOVSettings.NumSides,
-    Decimals = 0,
-    Suffix = "",
-    Callback = function(Value)
-        Environment.FOVSettings.NumSides = Value
-    end
-})
-
--- Players Page - Player Management
-local BlacklistSection = PlayersSubPage:Section({
-    Name = "Blacklist Management",
-    Icon = "136879043989014",
-    Side = 1
-})
-
--- Player list for blacklisting
-local playerList = {}
-for _, player in next, GetPlayers(Players) do
-    if player ~= LocalPlayer then
-        table.insert(playerList, player.Name)
-    end
+local CreateMobileUI = function()
+	if not IsMobile then return end
+	
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "ExunysAimbotMobileUI"
+	ScreenGui.DisplayOrder = 10
+	ScreenGui.ResetOnSpawn = false
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	
+	local AimButton = Instance.new("TextButton")
+	AimButton.Name = "AimButton"
+	AimButton.Size = UDim2.new(0, Environment.Settings.MobileButtonSize, 0, Environment.Settings.MobileButtonSize)
+	AimButton.Position = UDim2.new(0, Environment.Settings.MobileButtonPosition.X, 0, Environment.Settings.MobileButtonPosition.Y)
+	AimButton.BackgroundColor3 = Color3fromRGB(255, 255, 255)
+	AimButton.BackgroundTransparency = Environment.Settings.MobileButtonTransparency
+	AimButton.Text = "AIM"
+	AimButton.TextColor3 = Color3fromRGB(0, 0, 0)
+	AimButton.TextScaled = true
+	AimButton.BorderSizePixel = 0
+	AimButton.ZIndex = 10
+	AimButton.Parent = ScreenGui
+	
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, Environment.Settings.MobileButtonSize / 4)
+	Corner.Parent = AimButton
+	
+	Environment.MobileUI.AimButton = AimButton
+	Environment.MobileUI.AimButtonFrame = ScreenGui
 end
 
-local PlayerDropdown = BlacklistSection:Dropdown({
-    Name = "Select Player",
-    Flag = "Player_Select",
-    Items = playerList,
-    Default = playerList[1] or "",
-    Multi = false,
-    Callback = function(Value)
-        -- Store selected player
-    end
-})
-
-local BlacklistButton = BlacklistSection:Button({
-    Name = "Blacklist Selected",
-    Callback = function()
-        local selected = Library.Flags.Player_Select
-        if selected and selected ~= "" then
-            Environment:Blacklist(selected)
-            Library:Notification("Added " .. selected .. " to blacklist", 3, "94627324690861")
-        end
-    end
-})
-
-local WhitelistButton = BlacklistSection:Button({
-    Name = "Whitelist Selected",
-    Callback = function()
-        local selected = Library.Flags.Player_Select
-        if selected and selected ~= "" then
-            Environment:Whitelist(selected)
-            Library:Notification("Removed " .. selected .. " from blacklist", 3, "94627324690861")
-        end
-    end
-})
-
--- Misc Page - Configuration
-local ConfigSection = SettingsSubPage:Section({
-    Name = "System",
-    Icon = "136879043989014",
-    Side = 1
-})
-
-local SaveConfigButton = ConfigSection:Button({
-    Name = "Save Configuration",
-    Callback = function()
-        Library:Notification("Settings saved!", 3, "94627324690861")
-    end
-})
-
-local LoadConfigButton = ConfigSection:Button({
-    Name = "Load Configuration",
-    Callback = function()
-        Library:Notification("Settings loaded!", 3, "94627324690861")
-    end
-})
-
-local RestartButton = ConfigSection:Button({
-    Name = "Restart Aimbot",
-    Callback = function()
-        Environment:Restart()
-        Library:Notification("Aimbot restarted!", 3, "94627324690861")
-    end
-})
-
-local UnloadButton = ConfigSection:Button({
-    Name = "Unload Aimbot",
-    Callback = function()
-        Environment:Exit()
-        Library:Notification("Aimbot unloaded!", 3, "94627324690861")
-    end
-})
-
--- Status Label
-local StatusLabel = ConfigSection:Label({
-    Name = "Status: Ready"
-})
-
--- Update status periodically
-spawn(function()
-    while true do
-        if Environment.Locked then
-            StatusLabel:Set("Status: Locked on " .. (Environment.Locked and Environment.Locked.Name or "None"))
-        else
-            StatusLabel:Set("Status: Searching...")
-        end
-        wait(0.5)
-    end
-end)
-
--- Update player list periodically
-spawn(function()
-    while true do
-        local players = {}
-        for _, player in next, GetPlayers(Players) do
-            if player ~= LocalPlayer then
-                table.insert(players, player.Name)
-            end
-        end
-        PlayerDropdown:Refresh(players, players[1] or "")
-        wait(5)
-    end
-end)
-
-Library:CreateSettingsPage(Window)
-
---// Load Function
+local HandleMobileInput = function()
+	if not IsMobile then return end
+	
+	local Settings = Environment.Settings
+	
+	-- Touch input handling
+	ServiceConnections.TouchStarted = Connect(__index(UserInputService, "TouchStarted"), function(Input, Processed)
+		if Processed or Typing then return end
+		
+		if Settings.MobileTrigger == "Touch" or Settings.MobileTrigger == "Both" then
+			TouchStartPosition = Input.Position
+			TouchCurrentPosition = Input.Position
+			IsTouching = true
+			Running = true
+		end
+	end)
+	
+	ServiceConnections.TouchMoved = Connect(__index(UserInputService, "TouchMoved"), function(Input, Processed)
+		if Processed or not IsTouching then return end
+		TouchCurrentPosition = Input.Position
+	end)
+	
+	ServiceConnections.TouchEnded = Connect(__index(UserInputService, "TouchEnded"), function(Input, Processed)
+		if Processed then return end
+		
+		if Settings.MobileTrigger == "Touch" or Settings.MobileTrigger == "Both" then
+			IsTouching = false
+			TouchCurrentPosition = nil
+			
+			if not Settings.Toggle then
+				Running = false
+				CancelLock()
+			end
+		end
+	end)
+	
+	-- Button input handling
+	if Environment.MobileUI.AimButton then
+		ServiceConnections.MobileButtonDown = Connect(__index(Environment.MobileUI.AimButton, "MouseButton1Down"), function()
+			if Settings.MobileTrigger == "Button" or Settings.MobileTrigger == "Both" then
+				if Settings.Toggle then
+					Running = not Running
+					if not Running then
+						CancelLock()
+					end
+				else
+					Running = true
+				end
+			end
+		end)
+		
+		ServiceConnections.MobileButtonUp = Connect(__index(Environment.MobileUI.AimButton, "MouseButton1Up"), function()
+			if (Settings.MobileTrigger == "Button" or Settings.MobileTrigger == "Both") and not Settings.Toggle then
+				Running = false
+				CancelLock()
+			end
+		end)
+	end
+end
 
 local Load = function()
 	OriginalSensitivity = __index(UserInputService, "MouseDeltaSensitivity")
 
 	local Settings, FOVCircle, FOVCircleOutline, FOVSettings, Offset = Environment.Settings, Environment.FOVCircle, Environment.FOVCircleOutline, Environment.FOVSettings
+
+	--[[
+	if not Degrade then
+		FOVCircle, FOVCircleOutline = FOVCircle.__OBJECT, FOVCircleOutline.__OBJECT
+	end
+	]]
+	
+	-- Create mobile UI if on mobile
+	if IsMobile then
+		CreateMobileUI()
+		HandleMobileInput()
+	end
 
 	ServiceConnections.RenderSteppedConnection = Connect(__index(RunService, Environment.DeveloperSettings.UpdateMode), function()
 		local OffsetToMoveDirection, LockPart = Settings.OffsetToMoveDirection, Settings.LockPart
@@ -619,8 +385,11 @@ local Load = function()
 			setrenderproperty(FOVCircleOutline, "Color", FOVSettings.RainbowOutlineColor and GetRainbowColor() or FOVSettings.OutlineColor)
 
 			setrenderproperty(FOVCircleOutline, "Thickness", FOVSettings.Thickness + 1)
-			setrenderproperty(FOVCircle, "Position", GetMouseLocation(UserInputService))
-			setrenderproperty(FOVCircleOutline, "Position", GetMouseLocation(UserInputService))
+			
+			-- Use touch position for mobile FOV circle
+			local InputPosition = IsMobile and (TouchCurrentPosition or GetMouseLocation(UserInputService)) or GetMouseLocation(UserInputService)
+			setrenderproperty(FOVCircle, "Position", InputPosition)
+			setrenderproperty(FOVCircleOutline, "Position", InputPosition)
 		else
 			setrenderproperty(FOVCircle, "Visible", false)
 			setrenderproperty(FOVCircleOutline, "Visible", false)
@@ -634,9 +403,13 @@ local Load = function()
 			if Environment.Locked then
 				local LockedPosition_Vector3 = __index(__index(Environment.Locked, "Character")[LockPart], "Position")
 				local LockedPosition = WorldToViewportPoint(Camera, LockedPosition_Vector3 + Offset)
+				
+				local InputPosition = IsMobile and (TouchCurrentPosition or GetMouseLocation(UserInputService)) or GetMouseLocation(UserInputService)
 
 				if Environment.Settings.LockMode == 2 then
-					mousemoverel((LockedPosition.X - GetMouseLocation(UserInputService).X) / Settings.Sensitivity2, (LockedPosition.Y - GetMouseLocation(UserInputService).Y) / Settings.Sensitivity2)
+					if not IsMobile then -- mousemoverel doesn't work on mobile
+						mousemoverel((LockedPosition.X - InputPosition.X) / Settings.Sensitivity2, (LockedPosition.Y - InputPosition.Y) / Settings.Sensitivity2)
+					end
 				else
 					if Settings.Sensitivity > 0 then
 						Animation = TweenService:Create(Camera, TweenInfonew(Environment.Settings.Sensitivity, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFramenew(Camera.CFrame.Position, LockedPosition_Vector3)})
@@ -645,7 +418,9 @@ local Load = function()
 						__newindex(Camera, "CFrame", CFramenew(Camera.CFrame.Position, LockedPosition_Vector3 + Offset))
 					end
 
-					__newindex(UserInputService, "MouseDeltaSensitivity", 0)
+					if not IsMobile then -- Mouse sensitivity doesn't affect mobile
+						__newindex(UserInputService, "MouseDeltaSensitivity", 0)
+					end
 				end
 
 				setrenderproperty(FOVCircle, "Color", FOVSettings.LockedColor)
@@ -656,7 +431,7 @@ local Load = function()
 	ServiceConnections.InputBeganConnection = Connect(__index(UserInputService, "InputBegan"), function(Input)
 		local TriggerKey, Toggle = Settings.TriggerKey, Settings.Toggle
 
-		if Typing then
+		if Typing or IsMobile then -- Skip desktop input handling on mobile
 			return
 		end
 
@@ -676,7 +451,7 @@ local Load = function()
 	ServiceConnections.InputEndedConnection = Connect(__index(UserInputService, "InputEnded"), function(Input)
 		local TriggerKey, Toggle = Settings.TriggerKey, Settings.Toggle
 
-		if Toggle or Typing then
+		if Toggle or Typing or IsMobile then -- Skip desktop input handling on mobile
 			return
 		end
 
@@ -699,55 +474,66 @@ end)
 
 --// Functions
 
-function Environment.Exit(self)
+function Environment.Exit(self) -- METHOD | ExunysDeveloperAimbot:Exit(<void>)
 	assert(self, "EXUNYS_AIMBOT-V3.Exit: Missing parameter #1 \"self\" <table>.")
 
 	for Index, _ in next, ServiceConnections do
 		Disconnect(ServiceConnections[Index])
 	end
+	
+	-- Clean up mobile UI
+	if IsMobile and Environment.MobileUI.AimButtonFrame then
+		Environment.MobileUI.AimButtonFrame:Destroy()
+	end
 
 	Load = nil; ConvertVector = nil; CancelLock = nil; GetClosestPlayer = nil; GetRainbowColor = nil; FixUsername = nil
+	CreateMobileUI = nil; HandleMobileInput = nil
 
 	self.FOVCircle:Remove()
 	self.FOVCircleOutline:Remove()
 	getgenv().ExunysDeveloperAimbot = nil
 end
 
-function Environment.Restart()
+function Environment.Restart() -- ExunysDeveloperAimbot.Restart(<void>)
 	for Index, _ in next, ServiceConnections do
 		Disconnect(ServiceConnections[Index])
+	end
+	
+	-- Clean up mobile UI
+	if IsMobile and Environment.MobileUI.AimButtonFrame then
+		Environment.MobileUI.AimButtonFrame:Destroy()
 	end
 
 	Load()
 end
 
-function Environment.Blacklist(self, Username)
-	assert(self, "Haxzo_AIMBOT-V3.Blacklist: Missing parameter #1 \"self\" <table>.")
-	assert(Username, "Haxzo_AIMBOT-V3.Blacklist: Missing parameter #2 \"Username\" <string>.")
+function Environment.Blacklist(self, Username) -- METHOD | ExunysDeveloperAimbot:Blacklist(<string> Player Name)
+	assert(self, "EXUNYS_AIMBOT-V3.Blacklist: Missing parameter #1 \"self\" <table>.")
+	assert(Username, "EXUNYS_AIMBOT-V3.Blacklist: Missing parameter #2 \"Username\" <string>.")
 
 	Username = FixUsername(Username)
 
-	assert(self, "Haxzo_AIMBOT-V3.Blacklist: User "..Username.." couldn't be found.")
+	assert(self, "EXUNYS_AIMBOT-V3.Blacklist: User "..Username.." couldn't be found.")
 
 	self.Blacklisted[#self.Blacklisted + 1] = Username
 end
 
-function Environment.Whitelist(self, Username)
-	assert(self, "Haxzo_AIMBOT-V3.Whitelist: Missing parameter #1 \"self\" <table>.")
-	assert(Username, "Haxzo_AIMBOT-V3.Whitelist: Missing parameter #2 \"Username\" <string>.")
+function Environment.Whitelist(self, Username) -- METHOD | ExunysDeveloperAimbot:Whitelist(<string> Player Name)
+	assert(self, "EXUNYS_AIMBOT-V3.Whitelist: Missing parameter #1 \"self\" <table>.")
+	assert(Username, "EXUNYS_AIMBOT-V3.Whitelist: Missing parameter #2 \"Username\" <string>.")
 
 	Username = FixUsername(Username)
 
-	assert(Username, "Haxzo_AIMBOT-V3.Whitelist: User "..Username.." couldn't be found.")
+	assert(Username, "EXUNYS_AIMBOT-V3.Whitelist: User "..Username.." couldn't be found.")
 
 	local Index = tablefind(self.Blacklisted, Username)
 
-	assert(Index, "Haxzo_AIMBOT-V3.Whitelist: User "..Username.." is not blacklisted.")
+	assert(Index, "EXUNYS_AIMBOT-V3.Whitelist: User "..Username.." is not blacklisted.")
 
 	tableremove(self.Blacklisted, Index)
 end
 
-function Environment.GetClosestPlayer()
+function Environment.GetClosestPlayer() -- ExunysDeveloperAimbot.GetClosestPlayer(<void>)
 	GetClosestPlayer()
 	local Value = Environment.Locked
 	CancelLock()
@@ -755,13 +541,48 @@ function Environment.GetClosestPlayer()
 	return Value
 end
 
-Environment.Load = Load
+-- Mobile-specific functions
+function Environment.SetMobileButtonPosition(self, Position) -- METHOD | ExunysDeveloperAimbot:SetMobileButtonPosition(<Vector2> Position)
+	assert(self, "EXUNYS_AIMBOT-V3.SetMobileButtonPosition: Missing parameter #1 \"self\" <table>.")
+	assert(Position, "EXUNYS_AIMBOT-V3.SetMobileButtonPosition: Missing parameter #2 \"Position\" <Vector2>.")
+	
+	self.Settings.MobileButtonPosition = Position
+	
+	if IsMobile and self.MobileUI.AimButton then
+		self.MobileUI.AimButton.Position = UDim2.new(0, Position.X, 0, Position.Y)
+	end
+end
+
+function Environment.SetMobileButtonSize(self, Size) -- METHOD | ExunysDeveloperAimbot:SetMobileButtonSize(<number> Size)
+	assert(self, "EXUNYS_AIMBOT-V3.SetMobileButtonSize: Missing parameter #1 \"self\" <table>.")
+	assert(Size, "EXUNYS_AIMBOT-V3.SetMobileButtonSize: Missing parameter #2 \"Size\" <number>.")
+	
+	self.Settings.MobileButtonSize = Size
+	
+	if IsMobile and self.MobileUI.AimButton then
+		self.MobileUI.AimButton.Size = UDim2.new(0, Size, 0, Size)
+		
+		-- Update corner radius
+		local Corner = self.MobileUI.AimButton:FindFirstChild("UICorner")
+		if Corner then
+			Corner.CornerRadius = UDim.new(0, Size / 4)
+		end
+	end
+end
+
+function Environment.SetMobileButtonTransparency(self, Transparency) -- METHOD | ExunysDeveloperAimbot:SetMobileButtonTransparency(<number> Transparency)
+	assert(self, "EXUNYS_AIMBOT-V3.SetMobileButtonTransparency: Missing parameter #1 \"self\" <table>.")
+	assert(Transparency, "EXUNYS_AIMBOT-V3.SetMobileButtonTransparency: Missing parameter #2 \"Transparency\" <number>.")
+	
+	self.Settings.MobileButtonTransparency = Transparency
+	
+	if IsMobile and self.MobileUI.AimButton then
+		self.MobileUI.AimButton.BackgroundTransparency = Transparency
+	end
+end
+
+Environment.Load = Load -- ExunysDeveloperAimbot.Load()
 
 setmetatable(Environment, {__call = Load})
-
--- Initialize the aimbot
-Environment:Load()
-
-Library:Notification("Haxzo's Aimbot loaded successfully!", 5, "94627324690861")
 
 return Environment
