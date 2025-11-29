@@ -3,13 +3,13 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Real Damage Combat",
-   LoadingTitle = "50 Damage Per Hit",
-   LoadingSubtitle = "Server-Sided Damage",
+   Name = "Force Character Death",
+   LoadingTitle = "True Kill System",
+   LoadingSubtitle = "Forces Visual + Server Death",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "RealDamageConfig"
+      FileName = "TrueKillConfig"
    },
    KeySystem = false,
 })
@@ -17,187 +17,136 @@ local Window = Rayfield:CreateWindow({
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- Damage Settings
-_G.RealDamage = false
-_G.DamagePerHit = 50
-_G.TeleportPunch = false
-_G.ForceServerDamage = true
-_G.DamageAll = false
+-- Kill Settings
+_G.ForceDeath = false
+_G.RagdollPlayers = true
+_G.RemoveCharacters = false
+_G.DeathAura = false
+_G.DeathRange = 30
 
--- Find server-sided damage methods
-local function findServerDamageMethods()
-    local methods = {}
-    
-    for _, obj in pairs(game:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            local name = obj.Name:lower()
-            -- Look for damage-related remotes that are likely server-sided
-            if name:find("damage") or name:find("hit") or name:find("punch") or 
-               name:find("attack") or name:find("strike") or name:find("hurt") then
-                table.insert(methods, {Object = obj, Type = obj.ClassName})
-            end
-        end
-    end
-    
-    return methods
-end
-
--- Send server-sided damage
-local function sendServerDamage(target, damageAmount)
+-- Force character death (visual + server)
+local function forceCharacterDeath(target)
     pcall(function()
-        local damageMethods = findServerDamageMethods()
         local targetChar = target.Character
-        local targetHumanoid = targetChar and targetChar:FindFirstChild("Humanoid")
+        if not targetChar then return end
         
-        if not targetHumanoid then return end
+        local humanoid = targetChar:FindFirstChild("Humanoid")
+        if not humanoid then return end
         
-        -- Store original health to verify damage
-        local originalHealth = targetHumanoid.Health
+        print("💀 Forcing death on: " .. target.Name)
         
-        -- METHOD 1: Try all damage remotes with different parameter formats
-        for _, method in pairs(damageMethods) do
-            local remote = method.Object
-            
+        -- METHOD 1: Force server death via remotes
+        for _, remote in pairs(game:GetDescendants()) do
             if remote:IsA("RemoteEvent") then
-                -- Try different parameter combinations that games commonly use
-                remote:FireServer(target, damageAmount)
-                remote:FireServer(targetChar, damageAmount)
-                remote:FireServer(targetHumanoid, damageAmount)
-                remote:FireServer("damage", target, damageAmount)
-                remote:FireServer("hit", target, damageAmount)
-                remote:FireServer(target, "damage", damageAmount)
-                remote:FireServer(damageAmount, target)
-                remote:FireServer({Target = target, Damage = damageAmount})
-                remote:FireServer({target, damageAmount})
-            elseif remote:IsA("RemoteFunction") then
-                pcall(function() remote:InvokeServer(target, damageAmount) end)
-                pcall(function() remote:InvokeServer(targetChar, damageAmount) end)
-                pcall(function() remote:InvokeServer("damage", target, damageAmount) end)
+                local name = remote.Name:lower()
+                if name:find("death") or name:find("die") or name:find("dead") or name:find("kill") then
+                    remote:FireServer(target)
+                    remote:FireServer(targetChar)
+                    remote:FireServer("death")
+                    remote:FireServer("die")
+                end
             end
         end
         
-        -- METHOD 2: Look for weapon systems and use them
-        local character = LocalPlayer.Character
-        if character then
-            for _, tool in pairs(character:GetChildren()) do
-                if tool:IsA("Tool") then
-                    -- Activate tool
-                    tool:Activate()
+        -- METHOD 2: Break character physically
+        if _G.RagdollPlayers then
+            for _, part in pairs(targetChar:GetChildren()) do
+                if part:IsA("Part") or part:IsA("MeshPart") then
+                    part:BreakJoints() -- This forces ragdoll
                     
-                    -- Fire tool damage remotes
-                    for _, remote in pairs(tool:GetDescendants()) do
-                        if remote:IsA("RemoteEvent") then
-                            remote:FireServer(target, damageAmount)
-                            remote:FireServer(targetChar, damageAmount)
-                            remote:FireServer("damage", damageAmount, target)
-                        end
+                    -- Make parts fall through floor
+                    if part:FindFirstChild("BodyVelocity") then
+                        part.BodyVelocity:Destroy()
                     end
+                    if part:FindFirstChild("BodyGyro") then
+                        part.BodyGyro:Destroy()
+                    end
+                    
+                    -- Add gravity force
+                    local bodyForce = Instance.new("BodyForce")
+                    bodyForce.Force = Vector3.new(0, part:GetMass() * -196.2, 0)
+                    bodyForce.Parent = part
                 end
             end
         end
         
-        -- METHOD 3: Combat system remotes (common in fighting games)
-        for _, remote in pairs(game:GetDescendants()) do
-            if remote:IsA("RemoteEvent") then
-                local name = remote.Name:lower()
-                if name:find("combat") or name:find("fight") or name:find("battle") then
-                    remote:FireServer("attack", target, damageAmount)
-                    remote:FireServer("damage", target, damageAmount)
+        -- METHOD 3: Remove humanoid (forces respawn)
+        if _G.RemoveCharacters then
+            humanoid:Destroy()
+            
+            -- Also remove other essential parts
+            local root = targetChar:FindFirstChild("HumanoidRootPart")
+            if root then
+                root:Destroy()
+            end
+        end
+        
+        -- METHOD 4: Force respawn via player controller
+        pcall(function()
+            target:LoadCharacter() -- Force respawn which shows death
+        end)
+        
+        -- METHOD 5: Teleport to death zone
+        local root = targetChar:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = CFrame.new(0, -1000, 0) -- Far underground
+        end
+        
+        -- METHOD 6: Set health to 0 on client AND try to sync to server
+        humanoid.Health = 0
+        
+        -- METHOD 7: Force death animation
+        for _, animTrack in pairs(humanoid:GetPlayingAnimationTracks()) do
+            if animTrack.Name:lower():find("death") or animTrack.Name:lower():find("die") then
+                animTrack:Play()
+            end
+        end
+        
+        -- METHOD 8: Look for custom death systems
+        for _, script in pairs(targetChar:GetDescendants()) do
+            if script:IsA("Script") then
+                if script.Name:lower():find("death") or script.Name:lower():find("health") then
+                    pcall(function()
+                        script:FireServer("death")
+                        script:FireServer("die")
+                    end)
                 end
             end
         end
         
-        -- METHOD 4: Player vs Player damage systems
-        for _, remote in pairs(game:GetDescendants()) do
-            if remote:IsA("RemoteEvent") then
-                local name = remote.Name:lower()
-                if name:find("pvp") or name:find("player") then
-                    remote:FireServer("damage_player", target, damageAmount)
-                    remote:FireServer("player_hit", target, damageAmount)
-                end
-            end
+        -- METHOD 9: Force server update via network ownership
+        if root then
+            root:SetNetworkOwner(nil) -- Makes physics server-sided
         end
         
-        -- Verify damage was applied
-        wait(0.1)
-        local newHealth = targetHumanoid.Health
-        if newHealth < originalHealth then
-            print("✅ Real damage applied: " .. target.Name .. " took " .. (originalHealth - newHealth) .. " damage")
-        else
-            print("❌ No damage detected - trying alternative methods...")
-            -- Fallback to direct damage if server methods fail
-            if _G.ForceServerDamage then
-                targetHumanoid:TakeDamage(damageAmount)
-            end
-        end
+        print("✅ Death forced: " .. target.Name)
     end)
 end
 
--- Main real damage system
-local function startRealDamage()
+-- Death aura system
+local function startDeathAura()
     spawn(function()
-        while _G.RealDamage do
+        while _G.DeathAura do
             wait(0.2)
-            
             pcall(function()
-                local targets = {}
-                
-                -- Get all valid targets
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Character then
-                        local humanoid = player.Character:FindFirstChild("Humanoid")
-                        if humanoid and humanoid.Health > 0 then
-                            table.insert(targets, player)
-                        end
-                    end
+                local myChar = LocalPlayer.Character
+                if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then
+                    return
                 end
                 
-                -- Apply damage to all targets
-                for _, target in pairs(targets) do
-                    sendServerDamage(target, _G.DamagePerHit)
-                    
-                    -- If teleport punch is enabled, move to target first
-                    if _G.TeleportPunch then
-                        local character = LocalPlayer.Character
-                        local targetChar = target.Character
-                        
-                        if character and character:FindFirstChild("HumanoidRootPart") and
-                           targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
-                            
-                            -- Teleport close to target
-                            local targetPos = targetChar.HumanoidRootPart.Position
-                            local offset = CFrame.new(0, 0, 3)
-                            character.HumanoidRootPart.CFrame = CFrame.new(targetPos) * offset
-                            
-                            -- Face the target
-                            character.HumanoidRootPart.CFrame = CFrame.new(
-                                character.HumanoidRootPart.Position,
-                                targetPos
-                            )
-                            
-                            wait(0.1) -- Small delay before damage
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-end
-
--- Damage all players globally (regardless of distance)
-local function damageAllPlayers()
-    spawn(function()
-        while _G.DamageAll do
-            wait(0.3)
-            
-            pcall(function()
+                local myRoot = myChar.HumanoidRootPart
+                
                 for _, target in pairs(Players:GetPlayers()) do
                     if target ~= LocalPlayer and target.Character then
-                        local humanoid = target.Character:FindFirstChild("Humanoid")
-                        if humanoid and humanoid.Health > 0 then
-                            sendServerDamage(target, _G.DamagePerHit)
+                        local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+                        if targetRoot then
+                            local distance = (myRoot.Position - targetRoot.Position).Magnitude
+                            if distance <= _G.DeathRange then
+                                forceCharacterDeath(target)
+                            end
                         end
                     end
                 end
@@ -206,8 +155,24 @@ local function damageAllPlayers()
     end)
 end
 
--- Test damage on single target
-local function testDamage()
+-- Force death on all players
+local function forceAllDeaths()
+    spawn(function()
+        while _G.ForceDeath do
+            wait(0.5)
+            pcall(function()
+                for _, target in pairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer then
+                        forceCharacterDeath(target)
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Test death on one player
+local function testDeath()
     pcall(function()
         local targets = {}
         for _, player in pairs(Players:GetPlayers()) do
@@ -218,175 +183,161 @@ local function testDamage()
         
         if #targets > 0 then
             local target = targets[1]
-            local targetHumanoid = target.Character:FindFirstChild("Humanoid")
-            if targetHumanoid then
-                local originalHealth = targetHumanoid.Health
-                sendServerDamage(target, _G.DamagePerHit)
-                
-                wait(0.2)
-                local newHealth = targetHumanoid.Health
-                local damageDealt = originalHealth - newHealth
-                
-                if damageDealt > 0 then
-                    Rayfield:Notify({
-                        Title = "Damage Test Successful",
-                        Content = "Dealt " .. damageDealt .. " damage to " .. target.Name,
-                        Duration = 4,
-                    })
-                else
-                    Rayfield:Notify({
-                        Title = "Damage Test Failed",
-                        Content = "No damage detected - trying fallback methods",
-                        Duration = 4,
-                    })
-                end
-            end
+            Rayfield:Notify({
+                Title = "Testing Death",
+                Content = "Forcing death on " .. target.Name,
+                Duration = 3,
+            })
+            forceCharacterDeath(target)
         end
     end)
 end
 
+-- Check if players are actually dead
+local function checkDeathStatus()
+    local deadPlayers = 0
+    local totalPlayers = 0
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            totalPlayers = totalPlayers + 1
+            if not player.Character or (player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health <= 0) then
+                deadPlayers = deadPlayers + 1
+            end
+        end
+    end
+    
+    return deadPlayers, totalPlayers
+end
+
 -- Rayfield UI
-local MainTab = Window:CreateTab("Real Damage", nil)
+local MainTab = Window:CreateTab("Force Death", nil)
 
--- Damage Settings
-local DamageSection = MainTab:CreateSection("Damage Settings")
+-- Death Settings
+local DeathSection = MainTab:CreateSection("Death Settings")
 
-local DamageToggle = MainTab:CreateToggle({
-    Name = "Real Damage Mode",
+local ForceDeathToggle = MainTab:CreateToggle({
+    Name = "Force Death All Players",
     CurrentValue = false,
-    Flag = "RealDamage",
+    Flag = "ForceDeath",
     Callback = function(Value)
-        _G.RealDamage = Value
+        _G.ForceDeath = Value
         if Value then
-            startRealDamage()
+            forceAllDeaths()
             Rayfield:Notify({
-                Title = "Real Damage Active",
-                Content = "Applying server-sided damage",
+                Title = "Force Death Active",
+                Content = "Forcing visual + server death",
                 Duration = 3,
             })
         end
     end,
 })
 
-local TeleportToggle = MainTab:CreateToggle({
-    Name = "Teleport + Punch",
+local DeathAuraToggle = MainTab:CreateToggle({
+    Name = "Death Aura",
     CurrentValue = false,
-    Flag = "TeleportPunch",
+    Flag = "DeathAura",
     Callback = function(Value)
-        _G.TeleportPunch = Value
-    end,
-})
-
-local DamageAllToggle = MainTab:CreateToggle({
-    Name = "Damage All Players",
-    CurrentValue = false,
-    Flag = "DamageAll",
-    Callback = function(Value)
-        _G.DamageAll = Value
+        _G.DeathAura = Value
         if Value then
-            damageAllPlayers()
+            startDeathAura()
             Rayfield:Notify({
-                Title = "Damage All Active",
-                Content = "Global damage to all players",
+                Title = "Death Aura Active",
+                Content = "Killing players in range",
                 Duration = 3,
             })
         end
     end,
 })
 
-local DamageSlider = MainTab:CreateSlider({
-    Name = "Damage Per Hit",
-    Range = {10, 100},
+local RagdollToggle = MainTab:CreateToggle({
+    Name = "Force Ragdoll",
+    CurrentValue = true,
+    Flag = "RagdollPlayers",
+    Callback = function(Value)
+        _G.RagdollPlayers = Value
+    end,
+})
+
+local RemoveToggle = MainTab:CreateToggle({
+    Name = "Remove Characters",
+    CurrentValue = false,
+    Flag = "RemoveCharacters",
+    Callback = function(Value)
+        _G.RemoveCharacters = Value
+    end,
+})
+
+local RangeSlider = MainTab:CreateSlider({
+    Name = "Death Range",
+    Range = {10, 50},
     Increment = 5,
-    Suffix = "damage",
-    CurrentValue = 50,
-    Flag = "DamagePerHit",
+    Suffix = "studs",
+    CurrentValue = 30,
+    Flag = "DeathRange",
     Callback = function(Value)
-        _G.DamagePerHit = Value
+        _G.DeathRange = Value
     end,
 })
 
 -- Quick Actions
 local ActionsSection = MainTab:CreateSection("Quick Actions")
 
-local TestDamageBtn = MainTab:CreateButton({
-    Name = "Test Damage System",
-    Callback = testDamage
+local TestDeathBtn = MainTab:CreateButton({
+    Name = "Test Death System",
+    Callback = testDeath
 })
 
-local ScanDamageBtn = MainTab:CreateButton({
-    Name = "Scan Damage Methods",
+local CheckStatusBtn = MainTab:CreateButton({
+    Name = "Check Death Status",
     Callback = function()
-        local methods = findServerDamageMethods()
-        local message = "Found " .. #methods .. " damage methods:\n"
-        for i, method in ipairs(methods) do
-            if i <= 6 then
-                message = message .. "• " .. method.Type .. ": " .. method.Object.Name .. "\n"
-            end
-        end
+        local dead, total = checkDeathStatus()
         Rayfield:Notify({
-            Title = "Damage Methods",
-            Content = message,
-            Duration = 6,
+            Title = "Death Status",
+            Content = dead .. "/" .. total .. " players dead",
+            Duration = 4,
         })
     end,
 })
 
-local MaxDamageMode = MainTab:CreateButton({
-    Name = "Activate Max Damage",
+local AnnihilationBtn = MainTab:CreateButton({
+    Name = "Activate Annihilation",
     Callback = function()
-        _G.RealDamage = true
-        _G.DamageAll = true
-        _G.TeleportPunch = true
-        _G.DamagePerHit = 100
-        DamageToggle:Set(true)
-        DamageAllToggle:Set(true)
-        TeleportToggle:Set(true)
-        DamageSlider:Set(100)
-        startRealDamage()
-        damageAllPlayers()
+        _G.ForceDeath = true
+        _G.DeathAura = true
+        _G.RagdollPlayers = true
+        _G.RemoveCharacters = true
+        ForceDeathToggle:Set(true)
+        DeathAuraToggle:Set(true)
+        RagdollToggle:Set(true)
+        RemoveToggle:Set(true)
+        forceAllDeaths()
+        startDeathAura()
         Rayfield:Notify({
-            Title = "Max Damage Mode",
-            Content = "100 damage to all players + teleport",
+            Title = "ANNIHILATION ACTIVE",
+            Content = "Maximum death force enabled",
             Duration = 4,
         })
     end,
 })
 
 -- Status
-local StatusSection = MainTab:CreateSection("Damage Status")
-local DamageStatus = MainTab:CreateLabel("Testing damage methods...")
+local StatusSection = MainTab:CreateSection("Death Status")
+local DeathStatus = MainTab:CreateLabel("Monitoring...")
 
--- Update status with damage verification
+-- Update death status
 spawn(function()
     while true do
-        wait(3)
-        pcall(function()
-            local totalDamage = 0
-            local damagedPlayers = 0
-            
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    local humanoid = player.Character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        -- Check if player has taken damage recently
-                        if humanoid.Health < humanoid.MaxHealth then
-                            damagedPlayers = damagedPlayers + 1
-                            totalDamage = totalDamage + (humanoid.MaxHealth - humanoid.Health)
-                        end
-                    end
-                end
-            end
-            
-            DamageStatus:Set("Damaged: " .. damagedPlayers .. " | Total: " .. totalDamage .. " HP")
-        end)
+        wait(2)
+        local dead, total = checkDeathStatus()
+        DeathStatus:Set("Dead: " .. dead .. "/" .. total .. " | Force: " .. (_G.ForceDeath and "ON" or "OFF"))
     end
 end)
 
 Rayfield:Notify({
-    Title = "Real Damage System Loaded",
-    Content = "Focusing on server-sided damage methods",
+    Title = "Force Death System Loaded",
+    Content = "Fixes visual desync - forces actual death",
     Duration = 5,
 })
 
-print("💥 Real Damage System initialized - Targeting server-sided damage!")
+print("💀 Force Death System initialized - Fixing visual desync!")
