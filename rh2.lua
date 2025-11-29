@@ -3,13 +3,13 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Track & Field Speed",
-   LoadingTitle = "Advanced Speed Bypass",
-   LoadingSubtitle = "Multi-Layer AC Evasion",
+   Name = "Hoop Life Pro",
+   LoadingTitle = "Auto Green + Dribble",
+   LoadingSubtitle = "Basketball Enhancement",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "TrackFieldSpeedConfig"
+      FileName = "HoopLifeConfig"
    },
    KeySystem = false,
 })
@@ -17,273 +17,284 @@ local Window = Rayfield:CreateWindow({
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- Advanced Speed Settings
-_G.SpeedEnabled = false
-_G.SpeedValue = 30
-_G.StealthMode = true
-_G.AdaptiveSpeed = true
-_G.RandomizeSpeed = true
-_G.NoStamina = false
+-- Hoop Life Settings
+_G.AutoGreen = false
+_G.GreenPercentage = 100
+_G.DribbleModifier = false
+_G.DribbleSpeed = 2.0
+_G.PerfectRelease = false
+_G.ShotAssist = false
+_G.BallControl = false
 
--- Advanced Anti-Cheat Bypass
-local originalWalkspeed = 16
-local detectionHooks = {}
-local speedMethods = {}
-
--- Multi-Layer Anti-Cheat Evasion
-local function setupAdvancedACBypass()
-    print("🛡️ Initializing Advanced AC Bypass...")
-    
-    -- Layer 1: Memory Obfuscation
-    pcall(function()
-        if setfflag then
-            setfflag("DFIntCrashUploadMaxUploads", "0")
-            setfflag("DFStringCrashUploadUrl", "")
+-- Find Basketball
+local function findBasketball()
+    local ball = Workspace:FindFirstChild("Basketball") or Workspace:FindFirstChild("Ball")
+    if not ball then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj.Name:lower():find("basketball") or obj.Name:lower():find("ball") then
+                if obj:IsA("Part") or obj:IsA("MeshPart") then
+                    return obj
+                end
+            end
         end
-    end)
-    
-    -- Layer 2: Hook Detection Systems
-    pcall(function()
-        -- Hook common anti-speed detection
-        for _, obj in pairs(game:GetDescendants()) do
-            if obj:IsA("RemoteEvent") then
-                local name = obj.Name:lower()
-                if name:find("speed") or name:find("walkspeed") or name:find("cheat") or name:find("detect") then
-                    detectionHooks[obj] = obj.FireServer
-                    obj.FireServer = function(self, ...)
-                        local args = {...}
-                        -- Filter out speed-related reports
-                        for i, arg in pairs(args) do
-                            if type(arg) == "string" and arg:lower():find("speed") then
-                                return nil
+    end
+    return ball
+end
+
+-- Find Hoop
+local function findHoop()
+    local hoop = Workspace:FindFirstChild("Hoop") or Workspace:FindFirstChild("Basket")
+    if not hoop then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj.Name:lower():find("hoop") or obj.Name:lower():find("basket") or obj.Name:lower():find("rim") then
+                if obj:IsA("Part") or obj:IsA("MeshPart") then
+                    return obj
+                end
+            end
+        end
+    end
+    return hoop
+end
+
+-- Auto Green System (Perfect Shots)
+local function activateAutoGreen()
+    spawn(function()
+        while _G.AutoGreen do
+            wait(0.1)
+            pcall(function()
+                -- Hook shot success calculations
+                for _, remote in pairs(game:GetDescendants()) do
+                    if remote:IsA("RemoteEvent") then
+                        local name = remote.Name:lower()
+                        if name:find("shot") or name:find("shoot") or name:find("make") or name:find("score") then
+                            local oldFire = remote.FireServer
+                            if not remote.__greenHooked then
+                                remote.__greenHooked = true
+                                remote.FireServer = function(self, ...)
+                                    local args = {...}
+                                    
+                                    -- Force shot success based on percentage
+                                    if _G.AutoGreen and math.random(1, 100) <= _G.GreenPercentage then
+                                        for i, arg in pairs(args) do
+                                            if type(arg) == "boolean" then
+                                                args[i] = true -- Force make
+                                            elseif type(arg) == "number" then
+                                                -- Perfect timing/accuracy
+                                                if arg < 100 then
+                                                    args[i] = 100
+                                                end
+                                            elseif type(arg) == "string" then
+                                                -- Replace miss with make
+                                                if arg:lower():find("miss") then
+                                                    args[i] = "make"
+                                                end
+                                            end
+                                        end
+                                    end
+                                    
+                                    return oldFire(self, unpack(args))
+                                end
                             end
                         end
-                        return detectionHooks[obj](self, ...)
                     end
                 end
-            end
-        end
-    end)
-    
-    -- Layer 3: Script Integrity Protection
-    pcall(function()
-        for _, v in pairs(getreg()) do
-            if type(v) == "function" and is_synapse_function(v) then
-                hookfunction(v, function(...) return ... end)
-            end
-        end
-    end)
-    
-    -- Layer 4: Network Traffic Obfuscation
-    pcall(function()
-        local mt = getrawmetatype(game)
-        if mt then
-            local oldNamecall = mt.__namecall
-            mt.__namecall = newcclosure(function(self, ...)
-                local method = getnamecallmethod()
-                if method == "FireServer" and tostring(self):find("Speed") then
-                    return nil
+                
+                -- Ball guidance system
+                local ball = findBasketball()
+                local hoop = findHoop()
+                
+                if ball and hoop and _G.AutoGreen then
+                    -- Make ball magnetize to hoop when shot
+                    local ballVelocity = ball.Velocity.Magnitude
+                    if ballVelocity > 20 then -- Ball is moving fast (shot taken)
+                        local direction = (hoop.Position - ball.Position).Unit
+                        local distance = (hoop.Position - ball.Position).Magnitude
+                        
+                        -- Apply correction force
+                        if distance < 100 then
+                            local correctionForce = direction * 8
+                            ball.Velocity = ball.Velocity + correctionForce
+                        end
+                    end
                 end
-                return oldNamecall(self, ...)
             end)
         end
     end)
-    
-    print("✅ Advanced AC Bypass - 4 Layers Active")
 end
 
--- Advanced Speed Methods (Multiple Techniques)
-local function initializeSpeedMethods()
-    speedMethods = {
-        -- Method 1: Direct Humanoid Modification (Stealth)
-        function(character, speed)
-            if character and character:FindFirstChild("Humanoid") then
-                local humanoid = character.Humanoid
-                if _G.StealthMode then
-                    -- Gradual speed increase to avoid detection
-                    local currentSpeed = humanoid.WalkSpeed
-                    if currentSpeed < speed then
-                        humanoid.WalkSpeed = math.min(currentSpeed + 2, speed)
-                    end
-                else
-                    humanoid.WalkSpeed = speed
-                end
-                return true
-            end
-            return false
-        end,
-        
-        -- Method 2: BodyVelocity Movement (Bypasses Humanoid)
-        function(character, speed)
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                local root = character.HumanoidRootPart
-                local bodyVelocity = root:FindFirstChild("SpeedBodyVelocity") or Instance.new("BodyVelocity")
-                bodyVelocity.Name = "SpeedBodyVelocity"
-                bodyVelocity.Velocity = root.CFrame.LookVector * speed
-                bodyVelocity.MaxForce = Vector3.new(4000, 0, 4000)
-                bodyVelocity.P = 1000
-                bodyVelocity.Parent = root
-                return true
-            end
-            return false
-        end,
-        
-        -- Method 3: CFrame Movement (Most Stealthy)
-        function(character, speed)
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                local root = character.HumanoidRootPart
-                local humanoid = character:FindFirstChild("Humanoid")
-                
-                if humanoid and humanoid.MoveDirection.Magnitude > 0 then
-                    local moveDirection = humanoid.MoveDirection
-                    local newPosition = root.Position + (moveDirection * speed * 0.1)
-                    root.CFrame = CFrame.new(newPosition, newPosition + moveDirection)
-                    return true
-                end
-            end
-            return false
-        end,
-        
-        -- Method 4: Network Ownership Bypass
-        function(character, speed)
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                local root = character.HumanoidRootPart
-                -- Remove network ownership for client-side control
-                root:SetNetworkOwner(nil)
-                return true
-            end
-            return false
-        end
-    }
-end
-
--- Advanced Speed System with Rotation
-local function activateAdvancedSpeed()
-    local currentMethod = 1
-    local lastMethodChange = tick()
-    
+-- Dribble Modifier System
+local function activateDribbleModifier()
     spawn(function()
-        while _G.SpeedEnabled do
+        while _G.DribbleModifier do
             RunService.Heartbeat:Wait()
             pcall(function()
+                local ball = findBasketball()
                 local character = LocalPlayer.Character
-                if not character then return end
                 
-                -- Calculate adaptive speed
-                local targetSpeed = _G.SpeedValue
-                if _G.AdaptiveSpeed then
-                    -- Adjust speed based on game context
-                    local humanoid = character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        if humanoid:GetState() == Enum.HumanoidStateType.Running then
-                            targetSpeed = _G.SpeedValue * 1.2
-                        end
-                    end
-                end
-                
-                -- Randomize speed if enabled
-                if _G.RandomizeSpeed then
-                    targetSpeed = targetSpeed + math.random(-5, 5)
-                    targetSpeed = math.max(16, targetSpeed) -- Don't go below normal
-                end
-                
-                -- Rotate through speed methods to avoid pattern detection
-                if tick() - lastMethodChange > 2 then
-                    currentMethod = (currentMethod % #speedMethods) + 1
-                    lastMethodChange = tick()
-                end
-                
-                -- Apply current speed method
-                local success = speedMethods[currentMethod](character, targetSpeed)
-                
-                -- Fallback to next method if current fails
-                if not success then
-                    currentMethod = (currentMethod % #speedMethods) + 1
-                    speedMethods[currentMethod](character, targetSpeed)
-                end
-                
-                -- No Stamina System
-                if _G.NoStamina then
-                    for _, obj in pairs(character:GetDescendants()) do
-                        if obj:IsA("NumberValue") and obj.Name:lower():find("stamina") then
-                            obj.Value = 100
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-end
-
--- Stealth Behavior Simulation
-local function simulateLegitBehavior()
-    spawn(function()
-        while _G.SpeedEnabled and _G.StealthMode do
-            wait(math.random(5, 15))
-            pcall(function()
-                local character = LocalPlayer.Character
-                if character and character:FindFirstChild("Humanoid") then
-                    -- Occasionally reset to normal speed briefly
-                    character.Humanoid.WalkSpeed = originalWalkspeed
-                    wait(0.5)
-                    -- Then resume modified speed
-                    if _G.SpeedEnabled then
-                        character.Humanoid.WalkSpeed = _G.SpeedValue
-                    end
-                end
-            end)
-        end
-    end)
-end
-
--- Cleanup System
-local function setupCleanup()
-    LocalPlayer.CharacterAdded:Connect(function(character)
-        wait(1) -- Wait for character to load
-        if _G.SpeedEnabled then
-            activateAdvancedSpeed()
-        end
-    end)
-    
-    game:GetService("Players").PlayerRemoving:Connect(function(player)
-        if player == LocalPlayer then
-            -- Clean up all modifications
-            for obj, oldFunc in pairs(detectionHooks) do
-                if obj and obj.Parent then
-                    obj.FireServer = oldFunc
-                end
-            end
-        end
-    end)
-end
-
--- Performance Monitor
-local function startPerformanceMonitor()
-    spawn(function()
-        local warningCount = 0
-        while _G.SpeedEnabled do
-            wait(10)
-            
-            pcall(function()
-                local character = LocalPlayer.Character
-                if character and character:FindFirstChild("Humanoid") then
-                    local currentSpeed = character.Humanoid.WalkSpeed
+                if ball and character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    local distance = (ball.Position - root.Position).Magnitude
                     
-                    -- Check if speed is being reset by anti-cheat
-                    if currentSpeed <= originalWalkspeed and _G.SpeedEnabled then
-                        warningCount = warningCount + 1
-                        if warningCount >= 3 then
-                            print("⚠️ Anti-cheat detected speed modifications!")
-                            -- Switch to more stealthy methods
-                            _G.StealthMode = true
-                            _G.RandomizeSpeed = true
-                            warningCount = 0
+                    -- If ball is close to player (dribbling range)
+                    if distance < 10 then
+                        -- Method 1: Increase dribble speed
+                        ball.Velocity = ball.Velocity * _G.DribbleSpeed
+                        
+                        -- Method 2: Better ball control
+                        if _G.BallControl then
+                            -- Keep ball closer to player
+                            local direction = (root.Position - ball.Position).Unit
+                            ball.Velocity = ball.Velocity + direction * 5
+                            
+                            -- Reduce ball bounce
+                            if ball.Velocity.Y > 0 then
+                                ball.Velocity = Vector3.new(ball.Velocity.X, ball.Velocity.Y * 0.7, ball.Velocity.Z)
+                            end
                         end
-                    else
-                        warningCount = 0
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Perfect Release System
+local function activatePerfectRelease()
+    spawn(function()
+        while _G.PerfectRelease do
+            wait(0.1)
+            pcall(function()
+                -- Hook release timing systems
+                for _, remote in pairs(game:GetDescendants()) do
+                    if remote:IsA("RemoteEvent") then
+                        local name = remote.Name:lower()
+                        if name:find("release") or name:find("timing") then
+                            local oldFire = remote.FireServer
+                            if not remote.__releaseHooked then
+                                remote.__releaseHooked = true
+                                remote.FireServer = function(self, ...)
+                                    local args = {...}
+                                    
+                                    -- Force perfect release timing
+                                    for i, arg in pairs(args) do
+                                        if type(arg) == "number" then
+                                            -- Perfect release value (usually 100)
+                                            if arg < 100 then
+                                                args[i] = 100
+                                            end
+                                        elseif type(arg) == "string" and arg:lower():find("perfect") then
+                                            args[i] = "perfect"
+                                        end
+                                    end
+                                    
+                                    return oldFire(self, unpack(args))
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Shot Assist System
+local function activateShotAssist()
+    spawn(function()
+        while _G.ShotAssist do
+            wait(0.2)
+            pcall(function()
+                local ball = findBasketball()
+                local character = LocalPlayer.Character
+                local hoop = findHoop()
+                
+                if ball and character and character:FindFirstChild("HumanoidRootPart") and hoop then
+                    local root = character.HumanoidRootPart
+                    local ballDistance = (ball.Position - root.Position).Magnitude
+                    
+                    -- If player has ball and is facing hoop
+                    if ballDistance < 8 then
+                        local directionToHoop = (hoop.Position - root.Position).Unit
+                        local characterDirection = root.CFrame.LookVector
+                        
+                        -- Auto-align with hoop for better shots
+                        if directionToHoop:Dot(characterDirection) > 0.5 then
+                            root.CFrame = CFrame.new(root.Position, Vector3.new(hoop.Position.X, root.Position.Y, hoop.Position.Z))
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Ball Control Enhancement
+local function activateBallControl()
+    spawn(function()
+        while _G.BallControl do
+            RunService.Heartbeat:Wait()
+            pcall(function()
+                local ball = findBasketball()
+                local character = LocalPlayer.Character
+                
+                if ball and character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    local distance = (ball.Position - root.Position).Magnitude
+                    
+                    -- Magnetic ball when close
+                    if distance < 15 then
+                        local direction = (root.Position - ball.Position).Unit
+                        local force = direction * 3
+                        ball.Velocity = ball.Velocity + force
+                    end
+                    
+                    -- Reduce ball rolling away
+                    if distance < 25 then
+                        local horizontalVelocity = Vector3.new(ball.Velocity.X, 0, ball.Velocity.Z)
+                        if horizontalVelocity.Magnitude > 10 then
+                            ball.Velocity = Vector3.new(
+                                ball.Velocity.X * 0.9,
+                                ball.Velocity.Y,
+                                ball.Velocity.Z * 0.9
+                            )
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Auto Dunk System
+local function autoDunk()
+    spawn(function()
+        while _G.AutoGreen do
+            wait(0.3)
+            pcall(function()
+                local ball = findBasketball()
+                local character = LocalPlayer.Character
+                local hoop = findHoop()
+                
+                if ball and character and character:FindFirstChild("HumanoidRootPart") and hoop then
+                    local root = character.HumanoidRootPart
+                    local ballDistance = (ball.Position - root.Position).Magnitude
+                    local hoopDistance = (hoop.Position - root.Position).Magnitude
+                    
+                    -- Auto-dunk when close to hoop with ball
+                    if ballDistance < 6 and hoopDistance < 15 then
+                        -- Trigger dunk animation/remote
+                        for _, remote in pairs(game:GetDescendants()) do
+                            if remote:IsA("RemoteEvent") and remote.Name:lower():find("dunk") then
+                                remote:FireServer()
+                            end
+                        end
+                        
+                        -- Force ball into hoop
+                        local dunkDirection = (hoop.Position - ball.Position).Unit
+                        ball.Velocity = dunkDirection * 50
                     end
                 end
             end)
@@ -292,121 +303,149 @@ local function startPerformanceMonitor()
 end
 
 -- Rayfield UI
-local MainTab = Window:CreateTab("Speed Bypass", nil)
+local MainTab = Window:CreateTab("Hoop Life Pro", nil)
 
--- Anti-Cheat Section
-local ACSection = MainTab:CreateSection("Advanced AC Bypass")
+-- Shooting Section
+local ShootingSection = MainTab:CreateSection("Shooting")
 
-local ACToggle = MainTab:CreateToggle({
-    Name = "Enable AC Bypass",
-    CurrentValue = true,
-    Flag = "StealthMode",
-    Callback = function(Value)
-        _G.StealthMode = Value
-        if Value then
-            setupAdvancedACBypass()
-        end
-    end,
-})
-
-local AdaptiveToggle = MainTab:CreateToggle({
-    Name = "Adaptive Speed",
-    CurrentValue = true,
-    Flag = "AdaptiveSpeed",
-    Callback = function(Value)
-        _G.AdaptiveSpeed = Value
-    end,
-})
-
-local RandomizeToggle = MainTab:CreateToggle({
-    Name = "Randomize Speed",
-    CurrentValue = true,
-    Flag = "RandomizeSpeed",
-    Callback = function(Value)
-        _G.RandomizeSpeed = Value
-    end,
-})
-
--- Speed Settings
-local SpeedSection = MainTab:CreateSection("Speed Settings")
-
-local SpeedToggle = MainTab:CreateToggle({
-    Name = "Enable Speed",
+local AutoGreenToggle = MainTab:CreateToggle({
+    Name = "Auto Green (Perfect Shots)",
     CurrentValue = false,
-    Flag = "SpeedEnabled",
+    Flag = "AutoGreen",
     Callback = function(Value)
-        _G.SpeedEnabled = Value
+        _G.AutoGreen = Value
         if Value then
-            activateAdvancedSpeed()
-            simulateLegitBehavior()
-            startPerformanceMonitor()
+            activateAutoGreen()
+            autoDunk()
             Rayfield:Notify({
-                Title = "Advanced Speed Active",
-                Content = "Multi-layer AC bypass engaged",
+                Title = "Auto Green Active",
+                Content = _G.GreenPercentage .. "% shot success",
                 Duration = 3,
             })
-        else
-            -- Reset to normal speed
-            pcall(function()
-                local character = LocalPlayer.Character
-                if character and character:FindFirstChild("Humanoid") then
-                    character.Humanoid.WalkSpeed = originalWalkspeed
-                end
-            end)
+        end
+    end,
+})
+
+local GreenSlider = MainTab:CreateSlider({
+    Name = "Green Percentage",
+    Range = {50, 100},
+    Increment = 5,
+    Suffix = "%",
+    CurrentValue = 100,
+    Flag = "GreenPercentage",
+    Callback = function(Value)
+        _G.GreenPercentage = Value
+    end,
+})
+
+local ReleaseToggle = MainTab:CreateToggle({
+    Name = "Perfect Release",
+    CurrentValue = false,
+    Flag = "PerfectRelease",
+    Callback = function(Value)
+        _G.PerfectRelease = Value
+        if Value then
+            activatePerfectRelease()
             Rayfield:Notify({
-                Title = "Speed Disabled",
-                Content = "Returned to normal speed",
-                Duration = 2,
+                Title = "Perfect Release Active",
+                Content = "Always perfect shot timing",
+                Duration = 3,
             })
         end
     end,
 })
 
-local SpeedSlider = MainTab:CreateSlider({
-    Name = "Speed Value",
-    Range = {20, 100},
-    Increment = 5,
-    Suffix = "speed",
-    CurrentValue = 30,
-    Flag = "SpeedValue",
+local AssistToggle = MainTab:CreateToggle({
+    Name = "Shot Assist",
+    CurrentValue = false,
+    Flag = "ShotAssist",
     Callback = function(Value)
-        _G.SpeedValue = Value
+        _G.ShotAssist = Value
+        if Value then
+            activateShotAssist()
+            Rayfield:Notify({
+                Title = "Shot Assist Active",
+                Content = "Auto-aim assistance",
+                Duration = 3,
+            })
+        end
     end,
 })
 
-local StaminaToggle = MainTab:CreateToggle({
-    Name = "No Stamina Drain",
+-- Dribble Section
+local DribbleSection = MainTab:CreateSection("Dribble & Control")
+
+local DribbleToggle = MainTab:CreateToggle({
+    Name = "Dribble Modifier",
     CurrentValue = false,
-    Flag = "NoStamina",
+    Flag = "DribbleModifier",
     Callback = function(Value)
-        _G.NoStamina = Value
+        _G.DribbleModifier = Value
+        if Value then
+            activateDribbleModifier()
+            Rayfield:Notify({
+                Title = "Dribble Modifier Active",
+                Content = "Enhanced dribble speed",
+                Duration = 3,
+            })
+        end
+    end,
+})
+
+local DribbleSlider = MainTab:CreateSlider({
+    Name = "Dribble Speed",
+    Range = {1.0, 3.0},
+    Increment = 0.1,
+    Suffix = "x",
+    CurrentValue = 2.0,
+    Flag = "DribbleSpeed",
+    Callback = function(Value)
+        _G.DribbleSpeed = Value
+    end,
+})
+
+local ControlToggle = MainTab:CreateToggle({
+    Name = "Ball Control",
+    CurrentValue = false,
+    Flag = "BallControl",
+    Callback = function(Value)
+        _G.BallControl = Value
+        if Value then
+            activateBallControl()
+            Rayfield:Notify({
+                Title = "Ball Control Active",
+                Content = "Magnetic ball handling",
+                Duration = 3,
+            })
+        end
     end,
 })
 
 -- Quick Actions
 local ActionsSection = MainTab:CreateSection("Quick Actions")
 
-local GhostMode = MainTab:CreateButton({
-    Name = "Activate Ghost Mode",
+local ProMode = MainTab:CreateButton({
+    Name = "Activate Pro Mode",
     Callback = function()
-        _G.SpeedEnabled = true
-        _G.StealthMode = true
-        _G.AdaptiveSpeed = true
-        _G.RandomizeSpeed = true
-        _G.NoStamina = true
-        _G.SpeedValue = 40
-        SpeedToggle:Set(true)
-        ACToggle:Set(true)
-        AdaptiveToggle:Set(true)
-        RandomizeToggle:Set(true)
-        StaminaToggle:Set(true)
-        SpeedSlider:Set(40)
-        activateAdvancedSpeed()
-        simulateLegitBehavior()
-        startPerformanceMonitor()
+        _G.AutoGreen = true
+        _G.DribbleModifier = true
+        _G.PerfectRelease = true
+        _G.ShotAssist = true
+        _G.BallControl = true
+        AutoGreenToggle:Set(true)
+        DribbleToggle:Set(true)
+        ReleaseToggle:Set(true)
+        AssistToggle:Set(true)
+        ControlToggle:Set(true)
+        activateAutoGreen()
+        activateDribbleModifier()
+        activatePerfectRelease()
+        activateShotAssist()
+        activateBallControl()
+        autoDunk()
         Rayfield:Notify({
-            Title = "Ghost Mode Active",
-            Content = "Maximum stealth speed enabled",
+            Title = "Pro Mode Activated",
+            Content = "All basketball enhancements enabled",
             Duration = 4,
         })
     end,
@@ -414,33 +453,40 @@ local GhostMode = MainTab:CreateButton({
 
 -- Status
 local StatusSection = MainTab:CreateSection("Status")
-local SpeedStatus = MainTab:CreateLabel("Speed: READY")
+local BallStatus = MainTab:CreateLabel("Basketball: Searching...")
 
--- Update status
+-- Update ball status
 spawn(function()
     while true do
-        wait(1)
-        pcall(function()
+        wait(2)
+        local ball = findBasketball()
+        local hoop = findHoop()
+        
+        if ball then
+            local distance = 999
             local character = LocalPlayer.Character
-            if character and character:FindFirstChild("Humanoid") then
-                local currentSpeed = character.Humanoid.WalkSpeed
-                local status = _G.SpeedEnabled and "ACTIVE 🚀" or "READY"
-                local speedText = math.floor(currentSpeed)
-                SpeedStatus:Set("Speed: " .. speedText .. " | Mode: " .. status)
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                distance = (ball.Position - character.HumanoidRootPart.Position).Magnitude
             end
-        end)
+            
+            local status = "Ball: " .. math.floor(distance) .. " studs"
+            if hoop then
+                status = status .. " | Hoop: Found"
+            else
+                status = status .. " | Hoop: Searching"
+            end
+            
+            BallStatus:Set(status)
+        else
+            BallStatus:Set("Basketball: Not found")
+        end
     end
 end)
 
--- Initialize
-setupAdvancedACBypass()
-initializeSpeedMethods()
-setupCleanup()
-
 Rayfield:Notify({
-    Title = "Track & Field Speed Loaded",
-    Content = "Advanced anti-cheat bypass ready",
+    Title = "Hoop Life Pro Loaded",
+    Content = "Auto green + dribble mods ready",
     Duration = 5,
 })
 
-print("⚡ Track & Field Advanced Speed - Multi-Layer AC Bypass Ready!")
+print("🏀 Hoop Life Pro - Basketball Enhancement System Ready!")
