@@ -34,6 +34,7 @@ _G.ShowPassRange = false
 _G.RangeDistance = 30
 _G.VisualizerColor = Color3.fromRGB(0, 255, 0)
 _G.MobileUIEnabled = false
+_G.WorkInMyCourt = true
 
 -- Visualizer Parts
 local rangeVisualizers = {}
@@ -42,13 +43,52 @@ local rangeVisualizers = {}
 local mobileScreenGui = nil
 local mobileFrame = nil
 
--- RH2 Specific Location Finder
+-- Check if we're in MyCourt
+local function isInMyCourt()
+    -- Check for MyCourt specific indicators
+    if workspace:FindFirstChild("MyCourt") then
+        return true
+    end
+    
+    -- Check for practice court indicators
+    if workspace:FindFirstChild("PracticeCourt") then
+        return true
+    end
+    
+    -- Check court name in lighting or workspace
+    if game:GetService("Lighting"):FindFirstChild("MyCourt") then
+        return true
+    end
+    
+    -- Check if we're in a private area (few players)
+    local playerCount = #Players:GetPlayers()
+    if playerCount <= 4 then -- MyCourt usually has few players
+        return true
+    end
+    
+    -- Check for specific MyCourt objects
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name:lower():find("mycourt") or obj.Name:lower():find("practice") then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- RH2 Specific Location Finder (Works in MyCourt)
 local function findRH2Locations()
     local locations = {}
     
-    -- Find basketball hoops
+    -- Always look for hoops regardless of game mode
     for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("hoop") or obj.Name:lower():find("basket") or obj.Name:lower():find("rim") then
+        -- Find basketball hoops (common names in RH2)
+        if obj.Name:lower():find("hoop") or 
+           obj.Name:lower():find("basket") or 
+           obj.Name:lower():find("rim") or
+           obj.Name:lower():find("goal") or
+           obj.Name:lower():find("score") then
+            
             if obj:IsA("Part") or obj:IsA("MeshPart") then
                 table.insert(locations, {
                     Part = obj,
@@ -58,62 +98,91 @@ local function findRH2Locations()
                 })
             end
         end
-    end
-    
-    -- Find court boundaries
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("court") or obj.Name:lower():find("floor") or obj.Name:lower():find("bound") then
-            if obj:IsA("Part") then
+        
+        -- Find backboard
+        if obj.Name:lower():find("backboard") or obj.Name:lower():find("board") then
+            if obj:IsA("Part") or obj:IsA("MeshPart") then
                 table.insert(locations, {
                     Part = obj,
                     Position = obj.Position,
-                    Name = "Court: " .. obj.Name,
-                    Type = "Court"
+                    Name = "Backboard: " .. obj.Name,
+                    Type = "Hoop"
                 })
             end
         end
     end
     
-    -- Find three-point line areas
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("three") or obj.Name:lower():find("3pt") or obj.Name:lower():find("long") then
-            if obj:IsA("Part") then
-                table.insert(locations, {
-                    Part = obj,
-                    Position = obj.Position,
-                    Name = "3-Point: " .. obj.Name,
-                    Type = "ThreePoint"
-                })
+    -- If we're in MyCourt, also check for court markings
+    if isInMyCourt() then
+        -- Look for three-point line in MyCourt
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj.Name:lower():find("three") or 
+               obj.Name:lower():find("3") or 
+               obj.Name:lower():find("point") or
+               obj.Name:lower():find("line") then
+                
+                if obj:IsA("Part") then
+                    table.insert(locations, {
+                        Part = obj,
+                        Position = obj.Position,
+                        Name = "3-Point Line: " .. obj.Name,
+                        Type = "ThreePoint"
+                    })
+                end
+            end
+        end
+        
+        -- Look for dunk zones in MyCourt
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj.Name:lower():find("dunk") or 
+               obj.Name:lower():find("slam") or
+               obj.Name:lower():find("key") or
+               obj.Name:lower():find("paint") then
+                
+                if obj:IsA("Part") then
+                    table.insert(locations, {
+                        Part = obj,
+                        Position = obj.Position,
+                        Name = "Dunk Zone: " .. obj.Name,
+                        Type = "Dunk"
+                    })
+                end
+            end
+        end
+    else
+        -- In actual game, look for teammates
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local isTeammate = true -- You might want to add team checking here
+                    if isTeammate then
+                        table.insert(locations, {
+                            Part = root,
+                            Position = root.Position,
+                            Name = "Teammate: " .. player.Name,
+                            Type = "Teammate"
+                        })
+                    end
+                end
             end
         end
     end
     
-    -- Find dunk zones
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("dunk") or obj.Name:lower():find("slam") then
-            if obj:IsA("Part") then
-                table.insert(locations, {
-                    Part = obj,
-                    Position = obj.Position,
-                    Name = "Dunk Zone: " .. obj.Name,
-                    Type = "Dunk"
-                })
-            end
-        end
-    end
-    
-    -- Find pass targets or teammates
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local root = player.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                table.insert(locations, {
-                    Part = root,
-                    Position = root.Position,
-                    Name = "Teammate: " .. player.Name,
-                    Type = "Teammate"
-                })
-            end
+    -- If no specific locations found, create default hoop positions
+    if #locations == 0 then
+        print("No specific locations found. Creating default court positions.")
+        
+        -- Default court positions (adjust based on RH2 court layout)
+        local defaultPositions = {
+            {Position = Vector3.new(0, 10, 50), Name = "Default Hoop 1", Type = "Hoop"},
+            {Position = Vector3.new(0, 10, -50), Name = "Default Hoop 2", Type = "Hoop"},
+            {Position = Vector3.new(25, 5, 0), Name = "Default 3-Point", Type = "ThreePoint"},
+            {Position = Vector3.new(0, 5, 0), Name = "Default Dunk Zone", Type = "Dunk"}
+        }
+        
+        for _, pos in pairs(defaultPositions) do
+            table.insert(locations, pos)
         end
     end
     
@@ -197,14 +266,8 @@ local function updateRH2Visualizers()
         end
     end
     
-    if #rh2Locations == 0 then
-        print("No RH2 locations found. Creating sample visualizers.")
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            createRH2Visualizer(LocalPlayer.Character.HumanoidRootPart.Position, _G.RangeDistance, "Sample")
-        end
-    else
-        print("Found " .. #rh2Locations .. " RH2 locations")
-    end
+    print("MyCourt Mode: " .. tostring(isInMyCourt()))
+    print("Found " .. #rh2Locations .. " RH2 locations")
 end
 
 -- Create Mobile UI for RH2
@@ -218,7 +281,7 @@ local function createMobileUI()
     
     -- Main Frame
     mobileFrame = Instance.new("Frame")
-    mobileFrame.Size = UDim2.new(0, 200, 0, 180)
+    mobileFrame.Size = UDim2.new(0, 220, 0, 200)
     mobileFrame.Position = UDim2.new(0, 10, 0, 10)
     mobileFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     mobileFrame.BackgroundTransparency = 0.3
@@ -235,6 +298,16 @@ local function createMobileUI()
     title.TextSize = 14
     title.Parent = mobileFrame
     
+    -- Court Status
+    local courtLabel = Instance.new("TextLabel")
+    courtLabel.Size = UDim2.new(1, -10, 0, 20)
+    courtLabel.Position = UDim2.new(0, 5, 0, 25)
+    courtLabel.BackgroundTransparency = 1
+    courtLabel.Text = "Mode: Detecting..."
+    courtLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    courtLabel.TextSize = 11
+    courtLabel.Parent = mobileFrame
+    
     -- Toggle Buttons
     local buttons = {
         {"Shot Range", "ShowShotRange"},
@@ -246,7 +319,7 @@ local function createMobileUI()
         local btnName, globalVar = btnData[1], btnData[2]
         local button = Instance.new("TextButton")
         button.Size = UDim2.new(1, -10, 0, 25)
-        button.Position = UDim2.new(0, 5, 0, 25 + (i * 30))
+        button.Position = UDim2.new(0, 5, 0, 45 + (i * 30))
         button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
         button.Text = btnName
         button.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -262,7 +335,7 @@ local function createMobileUI()
     -- Range Display
     local rangeLabel = Instance.new("TextLabel")
     rangeLabel.Size = UDim2.new(1, -10, 0, 20)
-    rangeLabel.Position = UDim2.new(0, 5, 0, 130)
+    rangeLabel.Position = UDim2.new(0, 5, 0, 150)
     rangeLabel.BackgroundTransparency = 1
     rangeLabel.Text = "Range: " .. _G.RangeDistance .. " studs"
     rangeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -272,7 +345,7 @@ local function createMobileUI()
     -- Status Display
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, -10, 0, 20)
-    statusLabel.Position = UDim2.new(0, 5, 0, 150)
+    statusLabel.Position = UDim2.new(0, 5, 0, 170)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "Active: 0/3"
     statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -289,6 +362,11 @@ local function updateMobileUI()
     
     local statusLabel = mobileFrame:FindFirstChild("StatusLabel")
     local rangeLabel = mobileFrame:FindFirstChild("RangeLabel")
+    local courtLabel = mobileFrame:FindFirstChild("CourtLabel")
+    
+    if courtLabel then
+        courtLabel.Text = "Mode: " .. (isInMyCourt() and "MyCourt" or "Game")
+    end
     
     if statusLabel then
         local activeCount = (_G.ShowShotRange and 1 or 0) + (_G.ShowDunkRange and 1 or 0) + (_G.ShowPassRange and 1 or 0)
@@ -310,6 +388,9 @@ end
 local MainTab = Window:CreateTab("RH2 Visualizer", nil)
 local VisualizerSection = MainTab:CreateSection("Basketball Range Settings")
 
+-- Court Status Display
+local CourtLabel = MainTab:CreateLabel("Current Mode: Detecting...")
+
 -- Shot Range Toggle
 local ShotToggle = MainTab:CreateToggle({
     Name = "Show Shot Range",
@@ -319,6 +400,7 @@ local ShotToggle = MainTab:CreateToggle({
         _G.ShowShotRange = Value
         updateRH2Visualizers()
         updateMobileUI()
+        CourtLabel:Set("Current Mode: " .. (isInMyCourt() and "MyCourt" or "Game"))
     end,
 })
 
@@ -331,6 +413,7 @@ local DunkToggle = MainTab:CreateToggle({
         _G.ShowDunkRange = Value
         updateRH2Visualizers()
         updateMobileUI()
+        CourtLabel:Set("Current Mode: " .. (isInMyCourt() and "MyCourt" or "Game"))
     end,
 })
 
@@ -343,6 +426,7 @@ local PassToggle = MainTab:CreateToggle({
         _G.ShowPassRange = Value
         updateRH2Visualizers()
         updateMobileUI()
+        CourtLabel:Set("Current Mode: " .. (isInMyCourt() and "MyCourt" or "Game"))
     end,
 })
 
@@ -366,10 +450,11 @@ local Button = MainTab:CreateButton({
     Name = "Refresh Visualizers",
     Callback = function()
         updateRH2Visualizers()
+        CourtLabel:Set("Current Mode: " .. (isInMyCourt() and "MyCourt" or "Game"))
         Rayfield:Notify({
             Title = "RH2 Visualizer",
-            Content = "Visualizers refreshed",
-            Duration = 2,
+            Content = "Visualizers refreshed - Mode: " .. (isInMyCourt() and "MyCourt" : "Game"),
+            Duration = 3,
         })
     end,
 })
@@ -377,6 +462,7 @@ local Button = MainTab:CreateButton({
 -- Auto-detect mobile and create UI
 spawn(function()
     wait(2)
+    CourtLabel:Set("Current Mode: " .. (isInMyCourt() and "MyCourt" or "Game"))
     if isMobile() then
         createMobileUI()
         Rayfield:Notify({
@@ -390,8 +476,17 @@ end)
 -- Initialization
 Rayfield:Notify({
     Title = "RH2 Visualizer Loaded",
-    Content = "Use to visualize basketball ranges",
+    Content = "Works in MyCourt and Games!",
     Duration = 5,
 })
 
+-- Auto-refresh when character spawns
+LocalPlayer.CharacterAdded:Connect(function()
+    wait(2) -- Wait for character to load
+    if _G.ShowShotRange or _G.ShowDunkRange or _G.ShowPassRange then
+        updateRH2Visualizers()
+    end
+end)
+
 print("RH2 Basketball Visualizer loaded successfully!")
+print("Now works in MyCourt and regular games!")
