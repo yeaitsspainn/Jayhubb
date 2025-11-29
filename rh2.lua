@@ -3,13 +3,13 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "RH2 No Pump Fake",
-   LoadingTitle = "Anti Pump Fake",
-   LoadingSubtitle = "Real Shots Only",
+   Name = "Mobile No Pump Fake",
+   LoadingTitle = "Mobile Pump Fix",
+   LoadingSubtitle = "Touch Screen Optimized",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "NoPumpConfig"
+      FileName = "MobilePumpFix"
    },
    KeySystem = false,
 })
@@ -20,59 +20,122 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- Settings
-_G.RealShotsOnly = true
-_G.AutoRelease = true
-_G.ShotPower = 100
-_G.PreventPumpFake = true
+-- Mobile Settings
+_G.MobileRealShots = true
+_G.TapToShoot = true
+_G.InstantRelease = true
+_G.ShotPower = 85
+_G.MobileUIEnabled = false
 
--- Fix for RH2 Pump Fake Issue
-local function fixPumpFake()
-    spawn(function()
-        while _G.PreventPumpFake do
-            wait(0.1)
-            pcall(function()
-                -- Method 1: Hook the shoot state system
-                for _, obj in pairs(game:GetDescendants()) do
-                    if obj:IsA("RemoteEvent") and (obj.Name:lower():find("shoot") or obj.Name:lower():find("shot")) then
-                        local oldFireServer = obj.FireServer
-                        if not obj.__pumpFixed then
-                            obj.__pumpFixed = true
-                            obj.FireServer = function(self, ...)
-                                local args = {...}
-                                
-                                -- Convert pump fake to real shot
-                                for i, arg in pairs(args) do
-                                    if type(arg) == "string" then
-                                        if arg:lower():find("fake") or arg:lower():find("pump") then
-                                            args[i] = "shoot" -- Change fake to real shoot
-                                        end
-                                    elseif type(arg) == "boolean" then
-                                        args[i] = true -- Force real shot
-                                    end
-                                end
-                                
-                                -- Add shot power if missing
-                                if #args == 1 and type(args[1]) == "string" then
-                                    table.insert(args, _G.ShotPower) -- Add power parameter
-                                    table.insert(args, true) -- Add success parameter
-                                end
-                                
-                                return oldFireServer(self, unpack(args))
-                            end
-                        end
+-- Mobile UI Elements
+local mobileScreenGui = nil
+local shootButton = nil
+
+-- Create Mobile Shoot Button (Bypasses RH2's button)
+local function createMobileShootButton()
+    if mobileScreenGui then mobileScreenGui:Destroy() end
+    
+    mobileScreenGui = Instance.new("ScreenGui")
+    mobileScreenGui.Name = "MobileRealShootUI"
+    mobileScreenGui.Parent = game.CoreGui
+    mobileScreenGui.ResetOnSpawn = false
+    
+    -- Big Red Shoot Button (replaces RH2's button)
+    shootButton = Instance.new("TextButton")
+    shootButton.Size = UDim2.new(0, 120, 0, 120)
+    shootButton.Position = UDim2.new(1, -140, 1, -140)
+    shootButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    shootButton.Text = "REAL\nSHOOT"
+    shootButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    shootButton.TextSize = 16
+    shootButton.TextWrapped = true
+    shootButton.ZIndex = 10
+    shootButton.Parent = mobileScreenGui
+    
+    -- Mobile touch event for real shots
+    shootButton.MouseButton1Click:Connect(function()
+        triggerRealMobileShot()
+    end)
+    
+    -- Also work with touch events
+    shootButton.TouchTap:Connect(function()
+        triggerRealMobileShot()
+    end)
+    
+    _G.MobileUIEnabled = true
+end
+
+-- Real Mobile Shot Function (Bypasses pump fake completely)
+local function triggerRealMobileShot()
+    pcall(function()
+        print("Mobile Real Shot Triggered")
+        
+        -- Method 1: Direct ball control
+        local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
+        if ball then
+            local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket") or workspace:FindFirstChild("Score")
+            if hoop then
+                -- Calculate perfect shot trajectory
+                local targetPos = hoop.Position + Vector3.new(0, 4, 0) -- Aim for center of hoop
+                local direction = (targetPos - ball.Position).Unit
+                local distance = (targetPos - ball.Position).Magnitude
+                
+                -- Apply shot force (mobile optimized)
+                local power = _G.ShotPower * (distance / 50)
+                power = math.min(power, 120) -- Cap power
+                
+                ball.Velocity = direction * power
+                print("Direct ball shot with power: " .. power)
+            end
+        end
+        
+        -- Method 2: Force all shoot remote events
+        for _, obj in pairs(game:GetDescendants()) do
+            if obj:IsA("RemoteEvent") then
+                -- Try all possible shoot commands
+                if obj.Name:lower():find("shoot") or obj.Name:lower():find("shot") or obj.Name:lower():find("fire") then
+                    obj:FireServer("shoot", _G.ShotPower, true)
+                    obj:FireServer("release", _G.ShotPower, true)
+                    obj:FireServer("shot", _G.ShotPower, true)
+                end
+            end
+        end
+        
+        -- Method 3: Stop any pump fake animations
+        local character = LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+                    if track.Name:lower():find("fake") or track.Name:lower():find("pump") then
+                        track:Stop()
+                        print("Stopped pump fake animation")
                     end
                 end
-                
-                -- Method 2: Direct character state manipulation
-                local character = LocalPlayer.Character
-                if character then
-                    local humanoid = character:FindFirstChild("Humanoid")
-                    if humanoid then
-                        -- Force out of any fake/animation states
-                        for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
-                            if track.Name:lower():find("fake") or track.Name:lower():find("pump") then
-                                track:Stop()
+            end
+        end
+    end)
+end
+
+-- Hook RH2's Mobile Shoot Button
+local function hookRH2MobileButton()
+    spawn(function()
+        while _G.MobileRealShots do
+            wait(0.5)
+            pcall(function()
+                -- Find RH2's mobile shoot button
+                for _, obj in pairs(game:GetDescendants()) do
+                    if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                        if obj.Text:lower():find("shoot") or obj.Name:lower():find("shoot") or obj.Name:lower():find("shot") then
+                            -- Replace RH2's button function with real shot
+                            local oldActivate = obj.Activate
+                            if not obj.__hooked then
+                                obj.__hooked = true
+                                obj.Activate = function(...)
+                                    print("RH2 Shoot Button Pressed - Converting to Real Shot")
+                                    triggerRealMobileShot()
+                                    return oldActivate(...)
+                                end
                             end
                         end
                     end
@@ -82,21 +145,39 @@ local function fixPumpFake()
     end)
 end
 
--- Auto-Release to prevent pump fakes
-local function setupAutoRelease()
+-- Mobile Touch Detection (for any screen taps)
+local function setupMobileTouchDetection()
+    UserInputService.TouchStarted:Connect(function(touch, gameProcessed)
+        if gameProcessed then return end
+        
+        -- Check if tap is near where shoot button would be (bottom right)
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        local tapPosition = touch.Position
+        
+        -- If tap is in bottom right quadrant (where shoot buttons usually are)
+        if tapPosition.X > viewportSize.X * 0.6 and tapPosition.Y > viewportSize.Y * 0.6 then
+            if _G.TapToShoot then
+                wait(0.1) -- Small delay
+                triggerRealMobileShot()
+            end
+        end
+    end)
+end
+
+-- Auto-Release for Mobile (Prevents holding too long)
+local function setupMobileAutoRelease()
     spawn(function()
-        while _G.AutoRelease do
-            wait(0.05)
+        while _G.InstantRelease do
+            wait(0.1)
             pcall(function()
-                -- Detect when player starts shooting and force release
+                -- Detect if player is in shooting state and force release
                 local character = LocalPlayer.Character
                 if character then
-                    -- Check for shoot animations or states
                     local humanoid = character:FindFirstChild("Humanoid")
                     if humanoid then
                         for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
-                            if track.Name:lower():find("shoot") or track.Name:lower():find("shot") then
-                                -- Force shot completion
+                            if track.Name:lower():find("shoot") or track.Name:lower():find("hold") then
+                                -- Force shot release
                                 for _, obj in pairs(game:GetDescendants()) do
                                     if obj:IsA("RemoteEvent") and obj.Name:lower():find("release") then
                                         obj:FireServer("release", _G.ShotPower, true)
@@ -111,11 +192,11 @@ local function setupAutoRelease()
     end)
 end
 
--- Direct Ball Control (Bypass pump fake entirely)
-local function directBallControl()
+-- Direct Ball Control for Mobile
+local function setupMobileBallControl()
     spawn(function()
-        while _G.RealShotsOnly do
-            wait(0.1)
+        while _G.MobileRealShots do
+            wait(0.2)
             pcall(function()
                 local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
                 local character = LocalPlayer.Character
@@ -125,14 +206,16 @@ local function directBallControl()
                     local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
                     
                     if root and hoop then
-                        -- Check if player is trying to shoot (character facing hoop, etc.)
+                        -- Auto-shoot when ball is close to player and facing hoop
+                        local ballDistance = (ball.Position - root.Position).Magnitude
                         local directionToHoop = (hoop.Position - root.Position).Unit
                         local characterDirection = root.CFrame.LookVector
                         
-                        -- If player is facing hoop and ball is close, auto-shoot
-                        if directionToHoop:Dot(characterDirection) > 0.7 and (ball.Position - root.Position).Magnitude < 10 then
-                            local shotDirection = (hoop.Position - ball.Position).Unit
-                            ball.Velocity = shotDirection * _G.ShotPower
+                        if ballDistance < 8 and directionToHoop:Dot(characterDirection) > 0.5 then
+                            -- Small chance to auto-shoot for convenience
+                            if math.random(1, 20) == 1 then
+                                triggerRealMobileShot()
+                            end
                         end
                     end
                 end
@@ -141,154 +224,120 @@ local function directBallControl()
     end)
 end
 
--- Hook Input to Force Real Shots
-local function hookInputForRealShots()
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        -- Detect shoot button press
-        if input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.ButtonA then
-            if _G.RealShotsOnly then
-                wait(0.1) -- Small delay to let game process input
-                pcall(function()
-                    -- Force a real shot after any input
-                    for _, obj in pairs(game:GetDescendants()) do
-                        if obj:IsA("RemoteEvent") and obj.Name:lower():find("shoot") then
-                            -- Send real shot command with full power
-                            obj:FireServer("shoot", _G.ShotPower, true, LocalPlayer)
-                        end
-                    end
-                    
-                    -- Also trigger release if needed
-                    for _, obj in pairs(game:GetDescendants()) do
-                        if obj:IsA("RemoteEvent") and obj.Name:lower():find("release") then
-                            obj:FireServer("release", _G.ShotPower, true)
-                        end
-                    end
-                end)
-            end
-        end
-    end)
-end
-
 -- Rayfield UI
-local MainTab = Window:CreateTab("No Pump Fake", nil)
-local FixSection = MainTab:CreateSection("Pump Fake Fixes")
+local MainTab = Window:CreateTab("Mobile Pump Fix", nil)
+local MobileSection = MainTab:CreateSection("Mobile Settings")
 
-local PumpFixToggle = MainTab:CreateToggle({
-    Name = "Prevent Pump Fakes",
+local MobileRealToggle = MainTab:CreateToggle({
+    Name = "Mobile Real Shots",
     CurrentValue = true,
-    Flag = "PreventPumpFake",
+    Flag = "MobileRealShots",
     Callback = function(Value)
-        _G.PreventPumpFake = Value
+        _G.MobileRealShots = Value
         if Value then
-            fixPumpFake()
+            hookRH2MobileButton()
+            setupMobileBallControl()
             Rayfield:Notify({
-                Title = "Pump Fake Protection",
-                Content = "All shots will be real shots",
+                Title = "Mobile Real Shots",
+                Content = "All mobile shots will be real",
                 Duration = 3,
             })
         end
     end,
 })
 
-local RealShotsToggle = MainTab:CreateToggle({
-    Name = "Real Shots Only",
+local TapShootToggle = MainTab:CreateToggle({
+    Name = "Tap to Shoot",
     CurrentValue = true,
-    Flag = "RealShotsOnly",
+    Flag = "TapToShoot",
     Callback = function(Value)
-        _G.RealShotsOnly = Value
+        _G.TapToShoot = Value
         if Value then
-            directBallControl()
+            setupMobileTouchDetection()
             Rayfield:Notify({
-                Title = "Real Shots Only",
-                Content = "No more pump fakes",
+                Title = "Tap to Shoot",
+                Content = "Screen taps trigger real shots",
                 Duration = 3,
             })
         end
     end,
 })
 
-local AutoReleaseToggle = MainTab:CreateToggle({
-    Name = "Auto-Release",
+local InstantReleaseToggle = MainTab:CreateToggle({
+    Name = "Instant Release",
     CurrentValue = true,
-    Flag = "AutoRelease",
+    Flag = "InstantRelease",
     Callback = function(Value)
-        _G.AutoRelease = Value
+        _G.InstantRelease = Value
         if Value then
-            setupAutoRelease()
+            setupMobileAutoRelease()
             Rayfield:Notify({
-                Title = "Auto-Release",
-                Content = "Automatic shot completion",
+                Title = "Instant Release",
+                Content = "No more shot holding",
                 Duration = 3,
             })
         end
     end,
 })
 
-local ShotPowerSlider = MainTab:CreateSlider({
-    Name = "Shot Power",
-    Range = {50, 150},
+local PowerSlider = MainTab:CreateSlider({
+    Name = "Mobile Shot Power",
+    Range = {50, 120},
     Increment = 5,
     Suffix = "power",
-    CurrentValue = 100,
+    CurrentValue = 85,
     Flag = "ShotPower",
     Callback = function(Value)
         _G.ShotPower = Value
     end,
 })
 
--- Quick Fix Button
-local QuickFixSection = MainTab:CreateSection("Quick Fixes")
+-- Quick Actions
+local ActionsSection = MainTab:CreateSection("Mobile Quick Actions")
 
-local ForceRealShots = MainTab:CreateButton({
-    Name = "Force Real Shot Now",
+local CreateShootButton = MainTab:CreateButton({
+    Name = "Create Mobile Shoot Button",
     Callback = function()
-        pcall(function()
-            for _, obj in pairs(game:GetDescendants()) do
-                if obj:IsA("RemoteEvent") and obj.Name:lower():find("shoot") then
-                    obj:FireServer("shoot", _G.ShotPower, true)
-                end
-            end
-            Rayfield:Notify({
-                Title = "Forced Real Shot",
-                Content = "Sent real shot command",
-                Duration = 2,
-            })
-        end)
-    end,
-})
-
-local AntiPumpMode = MainTab:CreateButton({
-    Name = "Activate Anti-Pump Mode",
-    Callback = function()
-        _G.PreventPumpFake = true
-        _G.RealShotsOnly = true
-        _G.AutoRelease = true
-        PumpFixToggle:Set(true)
-        RealShotsToggle:Set(true)
-        AutoReleaseToggle:Set(true)
-        fixPumpFake()
-        directBallControl()
-        setupAutoRelease()
+        createMobileShootButton()
         Rayfield:Notify({
-            Title = "Anti-Pump Mode Active",
-            Content = "All pump fake protections enabled",
+            Title = "Mobile Button Created",
+            Content = "Use the red REAL SHOOT button",
             Duration = 3,
         })
     end,
 })
 
--- Initialize
-fixPumpFake()
-directBallControl()
-setupAutoRelease()
-hookInputForRealShots()
-
-Rayfield:Notify({
-    Title = "No Pump Fake Loaded",
-    Content = "All shots will be real shots",
-    Duration = 5,
+local TestRealShot = MainTab:CreateButton({
+    Name = "Test Real Shot Now",
+    Callback = function()
+        triggerRealMobileShot()
+        Rayfield:Notify({
+            Title = "Real Shot Test",
+            Content = "Sent real shot command",
+            Duration = 2,
+        })
+    end,
 })
 
-print("RH2 No Pump Fake system loaded!")
+-- Initialize for Mobile
+if UserInputService.TouchEnabled then
+    createMobileShootButton()
+    hookRH2MobileButton()
+    setupMobileTouchDetection()
+    setupMobileAutoRelease()
+    setupMobileBallControl()
+    
+    Rayfield:Notify({
+        Title = "Mobile Pump Fix Loaded",
+        Content = "Use the red REAL SHOOT button",
+        Duration = 5,
+    })
+else
+    Rayfield:Notify({
+        Title = "Desktop Mode",
+        Content = "Mobile features not available",
+        Duration = 3,
+    })
+end
+
+print("Mobile No Pump Fake system loaded!")
