@@ -3,9 +3,9 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "RH2 Range Extender + AC Bypass",
-   LoadingTitle = "Range Extender Pro",
-   LoadingSubtitle = "With Anti-Cheat Protection",
+   Name = "RH2 Range Extender + Auto-Green",
+   LoadingTitle = "Basketball Hacks Pro",
+   LoadingSubtitle = "Range + Auto-Green + AC Bypass",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
@@ -19,12 +19,15 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- Range Extension Settings
+-- Settings
 _G.ExtendShotRange = false
 _G.ShotRangeMultiplier = 2.0
 _G.ExtendDunkRange = false
 _G.DunkRangeMultiplier = 2.0
 _G.NoRangeLimit = false
+_G.AutoGreen = false
+_G.AutoGreenPercentage = 100
+_G.AlwaysMakeShots = false
 
 -- Anti-Cheat Bypass Settings
 _G.HideScripts = true
@@ -35,7 +38,6 @@ _G.SimulateLegit = true
 
 -- Anti-Cheat Bypass Functions
 local function setupBypasses()
-    -- Hide scripts from detection
     if _G.HideScripts then
         pcall(function()
             for _, v in pairs(getreg()) do
@@ -46,7 +48,6 @@ local function setupBypasses()
         end)
     end
 
-    -- Spoof memory readings
     if _G.SpoofMemory then
         pcall(function()
             local oldgcinfo = gcinfo
@@ -54,7 +55,6 @@ local function setupBypasses()
         end)
     end
 
-    -- Anti-kick protection
     if _G.AntiKick then
         pcall(function()
             LocalPlayer.Kick:Connect(function()
@@ -63,7 +63,6 @@ local function setupBypasses()
         end)
     end
 
-    -- Clear execution logs
     if _G.ClearLogs then
         pcall(function()
             rconsoleclear()
@@ -75,19 +74,13 @@ end
 -- Hook common detection methods
 local function hookDetections()
     pcall(function()
-        -- Hook _G checks
-        local oldG = _G
-        setreadonly(_G, false)
-        
-        -- Hook remote event monitoring
         for _, obj in pairs(game:GetDescendants()) do
             if obj:IsA("RemoteEvent") then
                 local oldFireServer = obj.FireServer
                 obj.FireServer = function(self, ...)
                     local args = {...}
-                    -- Filter out suspicious arguments
                     for i, arg in pairs(args) do
-                        if type(arg) == "string" and arg:find("cheat") or arg:find("hack") then
+                        if type(arg) == "string" and (arg:find("cheat") or arg:find("hack")) then
                             args[i] = "legit_action"
                         end
                     end
@@ -106,15 +99,12 @@ local function simulateLegitBehavior()
         while wait(math.random(3, 8)) do
             pcall(function()
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                    -- Simulate normal player mistakes and human behavior
                     local humanoid = LocalPlayer.Character.Humanoid
                     
-                    -- Occasionally miss shots naturally
                     if math.random(1, 10) == 1 then
                         humanoid.Jump = true
                     end
                     
-                    -- Random small movements
                     if math.random(1, 5) == 1 then
                         humanoid:Move(Vector3.new(
                             math.random(-10, 10),
@@ -135,7 +125,6 @@ local function extendRanges()
             while _G.ExtendShotRange or _G.ExtendDunkRange or _G.NoRangeLimit do
                 wait(0.2)
                 pcall(function()
-                    -- Hook into shooting mechanics with anti-detection
                     for _, obj in pairs(game:GetDescendants()) do
                         if obj:IsA("RemoteEvent") and (obj.Name:lower():find("shoot") or obj.Name:lower():find("shot") or obj.Name:lower():find("dunk")) then
                             local oldFireServer = obj.FireServer
@@ -143,7 +132,6 @@ local function extendRanges()
                                 obj.__hooked = true
                                 obj.FireServer = function(self, ...)
                                     local args = {...}
-                                    -- Modify range parameters stealthily
                                     if _G.ExtendShotRange and type(args[1]) == "number" then
                                         args[1] = args[1] * _G.ShotRangeMultiplier
                                     end
@@ -151,7 +139,6 @@ local function extendRanges()
                                         args[2] = args[2] * _G.DunkRangeMultiplier
                                     end
                                     if _G.NoRangeLimit then
-                                        -- Remove all range limitations
                                         for i, arg in pairs(args) do
                                             if type(arg) == "number" and arg > 50 then
                                                 args[i] = arg * 1.5
@@ -164,12 +151,10 @@ local function extendRanges()
                         end
                     end
                     
-                    -- Modify character properties subtly
                     local character = LocalPlayer.Character
                     if character then
                         local humanoid = character:FindFirstChild("Humanoid")
                         if humanoid and _G.ExtendShotRange then
-                            -- Slightly increase jump power for better shots
                             humanoid.JumpPower = math.min(55, humanoid.JumpPower + 5)
                         end
                     end
@@ -179,7 +164,62 @@ local function extendRanges()
     end
 end
 
--- Modify basketball physics for longer range
+-- Auto-Green (Always Make Shots)
+local function activateAutoGreen()
+    spawn(function()
+        while _G.AutoGreen or _G.AlwaysMakeShots do
+            wait(0.1)
+            pcall(function()
+                -- Method 1: Hook shot success calculations
+                for _, obj in pairs(game:GetDescendants()) do
+                    if obj:IsA("RemoteEvent") and (obj.Name:lower():find("shot") or obj.Name:lower():find("score") or obj.Name:lower():find("make")) then
+                        local oldFireServer = obj.FireServer
+                        if not obj.__greenHooked then
+                            obj.__greenHooked = true
+                            obj.FireServer = function(self, ...)
+                                local args = {...}
+                                -- Force shot success based on percentage
+                                if _G.AutoGreen and math.random(1, 100) <= _G.AutoGreenPercentage then
+                                    -- Modify arguments to ensure shot makes
+                                    for i, arg in pairs(args) do
+                                        if type(arg) == "boolean" then
+                                            args[i] = true -- Force success
+                                        end
+                                    end
+                                end
+                                if _G.AlwaysMakeShots then
+                                    -- Always make shots regardless of percentage
+                                    for i, arg in pairs(args) do
+                                        if type(arg) == "boolean" then
+                                            args[i] = true
+                                        elseif type(arg) == "number" then
+                                            -- Perfect timing/accuracy
+                                            args[i] = 100
+                                        end
+                                    end
+                                end
+                                return oldFireServer(self, unpack(args))
+                            end
+                        end
+                    end
+                end
+                
+                -- Method 2: Modify basketball properties
+                local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
+                if ball and (_G.AutoGreen or _G.AlwaysMakeShots) then
+                    -- Make ball magnetize to hoop
+                    local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
+                    if hoop then
+                        local direction = (hoop.Position - ball.Position).Unit
+                        ball.Velocity = ball.Velocity + direction * 5
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Modify basketball physics
 local function modifyBallPhysics()
     spawn(function()
         while _G.ExtendShotRange do
@@ -187,7 +227,6 @@ local function modifyBallPhysics()
             pcall(function()
                 local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
                 if ball then
-                    -- Reduce gravity effect subtly
                     local bodyForce = ball:FindFirstChild("BodyForce") or Instance.new("BodyForce")
                     bodyForce.Force = Vector3.new(0, workspace.Gravity * -0.2, 0)
                     bodyForce.Parent = ball
@@ -197,7 +236,7 @@ local function modifyBallPhysics()
     end)
 end
 
--- Auto-aim with human-like imperfections
+-- Smart shot assist
 local function addSmartShotAssist()
     spawn(function()
         while _G.ExtendShotRange do
@@ -218,10 +257,8 @@ local function addSmartShotAssist()
                             local nearestHoop = hoops[1]
                             local distance = (root.Position - nearestHoop.Position).Magnitude
                             
-                            -- Only assist when actually useful and add slight imperfection
                             if distance > 30 and _G.ExtendShotRange then
                                 local direction = (nearestHoop.Position - root.Position).Unit
-                                -- Add slight random offset to seem human
                                 local offset = Vector3.new(
                                     math.random(-2, 2),
                                     math.random(-1, 1),
@@ -238,10 +275,11 @@ local function addSmartShotAssist()
 end
 
 -- Rayfield UI
-local MainTab = Window:CreateTab("Range Extender Pro", nil)
+local MainTab = Window:CreateTab("Basketball Hacks", nil)
+
+-- Range Settings
 local RangeSection = MainTab:CreateSection("Range Settings")
 
--- Shot Range Toggle
 local ShotToggle = MainTab:CreateToggle({
     Name = "Extend Shot Range",
     CurrentValue = false,
@@ -254,14 +292,13 @@ local ShotToggle = MainTab:CreateToggle({
             addSmartShotAssist()
             Rayfield:Notify({
                 Title = "Range Extended",
-                Content = "Shot range increased + AC Protection",
+                Content = "Shot range increased",
                 Duration = 3,
             })
         end
     end,
 })
 
--- Shot Range Multiplier
 local ShotMultiplier = MainTab:CreateSlider({
     Name = "Shot Range Multiplier",
     Range = {1.0, 5.0},
@@ -274,7 +311,6 @@ local ShotMultiplier = MainTab:CreateSlider({
     end,
 })
 
--- Dunk Range Toggle
 local DunkToggle = MainTab:CreateToggle({
     Name = "Extend Dunk Range",
     CurrentValue = false,
@@ -285,14 +321,13 @@ local DunkToggle = MainTab:CreateToggle({
             extendRanges()
             Rayfield:Notify({
                 Title = "Dunk Range Extended",
-                Content = "Dunk range increased + AC Protection",
+                Content = "Dunk range increased",
                 Duration = 3,
             })
         end
     end,
 })
 
--- No Range Limit Toggle
 local NoLimitToggle = MainTab:CreateToggle({
     Name = "No Range Limit",
     CurrentValue = false,
@@ -303,16 +338,65 @@ local NoLimitToggle = MainTab:CreateToggle({
             extendRanges()
             Rayfield:Notify({
                 Title = "No Limits",
-                Content = "All range limits removed + AC Protection",
+                Content = "All range limits removed",
                 Duration = 3,
             })
         end
     end,
 })
 
-local ACBypassSection = MainTab:CreateSection("Anti-Cheat Protection")
+-- Auto-Green Settings
+local AutoGreenSection = MainTab:CreateSection("Auto-Green Settings")
 
--- Anti-Cheat Toggles
+local AutoGreenToggle = MainTab:CreateToggle({
+    Name = "Auto-Green (Percentage)",
+    CurrentValue = false,
+    Flag = "AutoGreen",
+    Callback = function(Value)
+        _G.AutoGreen = Value
+        if Value then
+            activateAutoGreen()
+            Rayfield:Notify({
+                Title = "Auto-Green Active",
+                Content = _G.AutoGreenPercentage .. "% shot success rate",
+                Duration = 3,
+            })
+        end
+    end,
+})
+
+local GreenPercentage = MainTab:CreateSlider({
+    Name = "Success Percentage",
+    Range = {50, 100},
+    Increment = 5,
+    Suffix = "%",
+    CurrentValue = 100,
+    Flag = "AutoGreenPercentage",
+    Callback = function(Value)
+        _G.AutoGreenPercentage = Value
+    end,
+})
+
+local AlwaysGreenToggle = MainTab:CreateToggle({
+    Name = "Always Make Shots",
+    CurrentValue = false,
+    Flag = "AlwaysMakeShots",
+    Callback = function(Value)
+        _G.AlwaysMakeShots = Value
+        if Value then
+            activateAutoGreen()
+            Rayfield:Notify({
+                Title = "Always Green Active",
+                Content = "100% shot success guaranteed",
+                Duration = 3,
+            })
+        end
+    end,
+})
+
+-- Anti-Cheat Settings
+local ACSection = MainTab:CreateSection("Anti-Cheat Protection")
+
 local HideToggle = MainTab:CreateToggle({
     Name = "Hide Scripts",
     CurrentValue = true,
@@ -346,16 +430,18 @@ local SimulateToggle = MainTab:CreateToggle({
 -- Quick Actions
 local ActionsSection = MainTab:CreateSection("Quick Actions")
 
-local Auto3Point = MainTab:CreateButton({
-    Name = "Activate 3-Point Mode",
+local ProMode = MainTab:CreateButton({
+    Name = "Activate Pro Mode",
     Callback = function()
         _G.ExtendShotRange = true
-        _G.ShotRangeMultiplier = 3.0
+        _G.AutoGreen = true
+        _G.AlwaysMakeShots = true
         ShotToggle:Set(true)
-        ShotMultiplier:Set(3.0)
+        AutoGreenToggle:Set(true)
+        AlwaysGreenToggle:Set(true)
         Rayfield:Notify({
-            Title = "3-Point Mode Active",
-            Content = "Perfect for long-range shots",
+            Title = "Pro Mode Active",
+            Content = "Max range + 100% shot accuracy",
             Duration = 3,
         })
     end,
@@ -369,21 +455,21 @@ local ActivateAll = MainTab:CreateButton({
         simulateLegitBehavior()
         Rayfield:Notify({
             Title = "All Systems Active",
-            Content = "Range extender + AC bypass enabled",
+            Content = "Hacks + AC bypass enabled",
             Duration = 3,
         })
     end,
 })
 
--- Initialize everything
+-- Initialize
 setupBypasses()
 hookDetections()
 simulateLegitBehavior()
 
 Rayfield:Notify({
-    Title = "RH2 Range Extender Pro Loaded",
-    Content = "With integrated anti-cheat protection",
+    Title = "Basketball Hacks Pro Loaded",
+    Content = "Range extender + Auto-green + AC bypass active",
     Duration = 5,
 })
 
-print("RH2 Range Extender Pro + AC Bypass initialized")
+print("RH2 Basketball Hacks Pro initialized with Auto-Green!")
