@@ -3,13 +3,13 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "MyCourt Auto-Shoot Pro",
-   LoadingTitle = "MyCourt Hacks",
-   LoadingSubtitle = "Optimized for MyCourt",
+   Name = "Mobile MyCourt Hacks",
+   LoadingTitle = "Mobile Basketball",
+   LoadingSubtitle = "Touch Screen Optimized",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "MyCourtConfig"
+      FileName = "MobileCourtConfig"
    },
    KeySystem = false,
 })
@@ -18,129 +18,199 @@ local Window = Rayfield:CreateWindow({
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Settings
 _G.AutoShoot = false
 _G.AutoGreen = true
-_G.ShotDelay = 0.2
+_G.ShotDelay = 0.3
 _G.ExtendShotRange = false
 _G.ShotRangeMultiplier = 2.0
 _G.AlwaysMakeShots = true
+_G.MobileUIEnabled = false
 
--- MyCourt Detection
-local function isInMyCourt()
-    -- Check for MyCourt specific objects
-    if workspace:FindFirstChild("MyCourt") then return true end
-    if workspace:FindFirstChild("PracticeCourt") then return true end
-    if game:GetService("Lighting"):FindFirstChild("MyCourt") then return true end
+-- Mobile UI Elements
+local mobileScreenGui = nil
+local mobileFrame = nil
+local touchButtons = {}
+
+-- Detect if mobile
+local function isMobile()
+    return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+end
+
+-- Create Mobile Touch UI
+local function createMobileUI()
+    if mobileScreenGui then mobileScreenGui:Destroy() end
     
-    -- Check player count (MyCourt usually has few players)
-    local playerCount = #Players:GetPlayers()
-    if playerCount <= 4 then return true end
+    mobileScreenGui = Instance.new("ScreenGui")
+    mobileScreenGui.Name = "MobileBasketballUI"
+    mobileScreenGui.Parent = game.CoreGui
+    mobileScreenGui.ResetOnSpawn = false
     
-    -- Check for MyCourt specific objects
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("mycourt") or obj.Name:lower():find("practice") then
-            return true
+    -- Main Control Panel
+    local controlFrame = Instance.new("Frame")
+    controlFrame.Size = UDim2.new(0, 200, 0, 250)
+    controlFrame.Position = UDim2.new(0, 10, 0.5, -125)
+    controlFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    controlFrame.BackgroundTransparency = 0.3
+    controlFrame.BorderSizePixel = 0
+    controlFrame.Parent = mobileScreenGui
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    title.Text = "Mobile Controls"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 14
+    title.Parent = controlFrame
+    
+    -- Toggle UI Button
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(1, -10, 0, 25)
+    toggleBtn.Position = UDim2.new(0, 5, 0, 35)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    toggleBtn.Text = "Hide Panel"
+    toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleBtn.TextSize = 12
+    toggleBtn.Parent = controlFrame
+    
+    toggleBtn.MouseButton1Click:Connect(function()
+        controlFrame.Visible = not controlFrame.Visible
+        toggleBtn.Text = controlFrame.Visible and "Hide Panel" or "Show Panel"
+    end)
+    
+    -- Mobile Control Buttons
+    local mobileButtons = {
+        {"Auto-Shoot", function()
+            _G.AutoShoot = not _G.AutoShoot
+            if _G.AutoShoot then
+                setupMobileAutoShoot()
+            end
+            updateMobileUI()
+        end},
+        {"Auto-Green", function()
+            _G.AutoGreen = not _G.AutoGreen
+            if _G.AutoGreen then
+                setupMobileAutoGreen()
+            end
+            updateMobileUI()
+        end},
+        {"Extend Range", function()
+            _G.ExtendShotRange = not _G.ExtendShotRange
+            if _G.ExtendShotRange then
+                setupMobileRange()
+            end
+            updateMobileUI()
+        end},
+        {"Quick Shoot", quickMobileShot},
+        {"God Mode", activateMobileGodMode}
+    }
+    
+    for i, btnData in ipairs(mobileButtons) do
+        local btnName, btnFunc = btnData[1], btnData[2]
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -10, 0, 30)
+        button.Position = UDim2.new(0, 5, 0, 65 + (i * 35))
+        button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        button.Text = btnName
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextSize = 12
+        button.Parent = controlFrame
+        button.MouseButton1Click = btnFunc
+        
+        touchButtons[btnName] = button
+    end
+    
+    -- Status Display
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -10, 0, 20)
+    statusLabel.Position = UDim2.new(0, 5, 0, 240)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Ready for MyCourt"
+    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    statusLabel.TextSize = 11
+    statusLabel.Parent = controlFrame
+    touchButtons["Status"] = statusLabel
+    
+    _G.MobileUIEnabled = true
+    updateMobileUI()
+end
+
+-- Update Mobile UI Colors
+local function updateMobileUI()
+    if not touchButtons then return end
+    
+    local statusMap = {
+        ["Auto-Shoot"] = _G.AutoShoot,
+        ["Auto-Green"] = _G.AutoGreen,
+        ["Extend Range"] = _G.ExtendShotRange
+    }
+    
+    for btnName, button in pairs(touchButtons) do
+        if statusMap[btnName] ~= nil then
+            if statusMap[btnName] then
+                button.BackgroundColor3 = Color3.fromRGB(0, 150, 0) -- Green when active
+            else
+                button.BackgroundColor3 = Color3.fromRGB(70, 70, 70) -- Gray when inactive
+            end
         end
     end
     
-    return false
-end
-
--- Find MyCourt specific objects
-local function findMyCourtObjects()
-    local objects = {}
-    
-    -- MyCourt basketball hoops (common names)
-    for _, obj in pairs(workspace:GetDescendants()) do
-        -- Hoops in MyCourt
-        if obj.Name:lower():find("hoop") or 
-           obj.Name:lower():find("basket") or 
-           obj.Name:lower():find("rim") or
-           obj.Name:lower():find("goal") or
-           obj.Name:lower():find("score") then
-            
-            if obj:IsA("Part") or obj:IsA("MeshPart") then
-                table.insert(objects, {Object = obj, Type = "Hoop"})
-            end
-        end
-        
-        -- Basketball in MyCourt
-        if obj.Name:lower():find("basketball") or 
-           obj.Name:lower():find("ball") or
-           obj.Name:lower():find("sphere") then
-            
-            if obj:IsA("Part") or obj:IsA("MeshPart") then
-                table.insert(objects, {Object = obj, Type = "Ball"})
-            end
-        end
-        
-        -- Shoot triggers in MyCourt
-        if obj.Name:lower():find("shoot") or 
-           obj.Name:lower():find("shot") or
-           obj.Name:lower():find("fire") or
-           obj.Name:lower():find("throw") then
-            
-            if obj:IsA("Part") or obj:IsA("TextButton") or obj:IsA("RemoteEvent") then
-                table.insert(objects, {Object = obj, Type = "ShootTrigger"})
-            end
-        end
+    if touchButtons["Status"] then
+        local activeCount = (_G.AutoShoot and 1 or 0) + (_G.AutoGreen and 1 or 0) + (_G.ExtendShotRange and 1 or 0)
+        touchButtons["Status"].Text = activeCount .. "/3 Features Active"
+        touchButtons["Status"].TextColor3 = activeCount > 0 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 50, 50)
     end
-    
-    return objects
 end
 
--- MyCourt Auto-Shoot System
-local function setupMyCourtAutoShoot()
+-- Mobile Auto-Shoot System
+local function setupMobileAutoShoot()
     spawn(function()
         while _G.AutoShoot do
             wait(_G.ShotDelay)
             pcall(function()
-                local myCourtObjects = findMyCourtObjects()
-                
-                -- Method 1: Trigger shoot buttons
-                for _, obj in pairs(myCourtObjects) do
-                    if obj.Type == "ShootTrigger" and obj.Object:IsA("TextButton") then
-                        if obj.Object.Visible then
-                            obj.Object:FireEvent("MouseButton1Click")
-                        end
-                    end
-                end
-                
-                -- Method 2: Fire shoot remote events
+                -- Method 1: Find and click shoot buttons (mobile UI)
                 for _, obj in pairs(game:GetDescendants()) do
-                    if obj:IsA("RemoteEvent") then
-                        -- Try common MyCourt shoot event names
-                        if obj.Name:lower():find("shoot") or 
-                           obj.Name:lower():find("shot") or
-                           obj.Name:lower():find("fire") or
-                           obj.Name:lower():find("throw") or
-                           obj.Name:lower():find("basket") then
-                            
-                            obj:FireServer("shoot")
-                            obj:FireServer("shot")
-                            obj:FireServer(LocalPlayer)
+                    if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                        if obj.Text:lower():find("shoot") or obj.Name:lower():find("shoot") or obj.Name:lower():find("shot") then
+                            if obj.Visible then
+                                -- Simulate mobile tap
+                                obj:FireEvent("MouseButton1Click")
+                                obj:FireEvent("Activated")
+                            end
                         end
                     end
                 end
                 
-                -- Method 3: Direct ball manipulation for MyCourt
+                -- Method 2: Trigger touch events for mobile
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj:IsA("Part") and (obj.Name:lower():find("shoot") or obj.Name:lower():find("trigger")) then
+                        local character = LocalPlayer.Character
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            -- Simulate touch
+                            firetouchinterest(character.HumanoidRootPart, obj, 0)
+                            wait()
+                            firetouchinterest(character.HumanoidRootPart, obj, 1)
+                        end
+                    end
+                end
+                
+                -- Method 3: Direct ball shooting for mobile
                 local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
                 if ball then
                     local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
                     if hoop then
-                        -- Calculate shot trajectory
+                        -- Auto-shoot the ball
                         local direction = (hoop.Position - ball.Position).Unit
-                        local distance = (hoop.Position - ball.Position).Magnitude
-                        
-                        -- Apply force to ball (MyCourt physics)
+                        local power = 40
                         if _G.ExtendShotRange then
-                            ball.Velocity = direction * (distance * _G.ShotRangeMultiplier)
-                        else
-                            ball.Velocity = direction * distance * 1.5
+                            power = power * _G.ShotRangeMultiplier
                         end
+                        ball.Velocity = direction * power
                     end
                 end
             end)
@@ -148,32 +218,27 @@ local function setupMyCourtAutoShoot()
     end)
 end
 
--- MyCourt Auto-Green System
-local function setupMyCourtAutoGreen()
+-- Mobile Auto-Green System
+local function setupMobileAutoGreen()
     spawn(function()
         while _G.AutoGreen or _G.AlwaysMakeShots do
             wait(0.1)
             pcall(function()
-                -- Hook all possible MyCourt remotes
+                -- Hook all remote events for mobile
                 for _, obj in pairs(game:GetDescendants()) do
                     if obj:IsA("RemoteEvent") then
                         local oldFireServer = obj.FireServer
-                        if not obj.__mycourtHooked then
-                            obj.__mycourtHooked = true
+                        if not obj.__mobileHooked then
+                            obj.__mobileHooked = true
                             obj.FireServer = function(self, ...)
                                 local args = {...}
                                 
-                                -- Force success for any shot-related events
                                 if _G.AutoGreen or _G.AlwaysMakeShots then
                                     for i, arg in pairs(args) do
                                         if type(arg) == "boolean" then
                                             args[i] = true
                                         elseif type(arg) == "number" and arg < 100 then
                                             args[i] = 100
-                                        elseif type(arg) == "string" then
-                                            if arg:lower():find("miss") or arg:lower():find("fail") then
-                                                args[i] = "score"
-                                            end
                                         end
                                     end
                                 end
@@ -184,20 +249,17 @@ local function setupMyCourtAutoGreen()
                     end
                 end
                 
-                -- Direct ball manipulation for guaranteed scores
+                -- Mobile ball guidance
                 local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
-                if ball then
+                if ball and (_G.AutoGreen or _G.AlwaysMakeShots) then
                     local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
                     if hoop then
-                        -- Make ball go directly into hoop
-                        local hoopPos = hoop.Position + Vector3.new(0, 5, 0) -- Aim for center of hoop
-                        local direction = (hoopPos - ball.Position).Unit
-                        local distance = (hoopPos - ball.Position).Magnitude
+                        -- Guide ball toward hoop (mobile-friendly)
+                        local direction = (hoop.Position - ball.Position).Unit
+                        local distance = (hoop.Position - ball.Position).Magnitude
                         
-                        if distance < 100 then -- Only when ball is in reasonable range
-                            -- Apply magnetic force toward hoop
-                            local force = direction * 25
-                            ball.Velocity = ball.Velocity + force
+                        if distance < 80 then
+                            ball.Velocity = ball.Velocity + direction * 8
                         end
                     end
                 end
@@ -206,203 +268,178 @@ local function setupMyCourtAutoGreen()
     end)
 end
 
--- MyCourt Range Extension
-local function setupMyCourtRange()
+-- Mobile Range Extension
+local function setupMobileRange()
     spawn(function()
         while _G.ExtendShotRange do
             wait(0.3)
             pcall(function()
-                -- Modify character properties for MyCourt
+                -- Mobile character adjustments
                 local character = LocalPlayer.Character
                 if character then
                     local humanoid = character:FindFirstChild("Humanoid")
                     if humanoid then
-                        -- Increase jump and movement for better shots
-                        humanoid.JumpPower = 55
-                        humanoid.WalkSpeed = 22
+                        humanoid.JumpPower = 50
+                        humanoid.WalkSpeed = 20
                     end
                 end
                 
-                -- Modify ball physics for longer range
+                -- Mobile ball physics
                 local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
                 if ball then
-                    -- Reduce gravity effect
                     local bodyForce = ball:FindFirstChild("BodyForce") or Instance.new("BodyForce")
-                    bodyForce.Force = Vector3.new(0, workspace.Gravity * -0.3, 0)
+                    bodyForce.Force = Vector3.new(0, workspace.Gravity * -0.25, 0)
                     bodyForce.Parent = ball
-                    
-                    -- Reduce air resistance
-                    ball.Material = Enum.Material.Neon
                 end
             end)
         end
     end)
 end
 
--- Detect when player tries to shoot in MyCourt
-local function setupMyCourtShootDetection()
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        -- Common shoot keys in MyCourt
-        if input.KeyCode == Enum.KeyCode.E or 
-           input.KeyCode == Enum.KeyCode.F or 
-           input.KeyCode == Enum.KeyCode.Space or
-           input.KeyCode == Enum.KeyCode.ButtonA then
-            
-            if _G.AutoGreen then
-                -- Enhance the shot automatically
-                pcall(function()
-                    local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
-                    if ball then
-                        local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
-                        if hoop then
-                            -- Calculate perfect shot trajectory
-                            local targetPos = hoop.Position + Vector3.new(0, 3, 0)
-                            local direction = (targetPos - ball.Position).Unit
-                            
-                            -- Apply perfect shot force
-                            local shotPower = 50
-                            if _G.ExtendShotRange then
-                                shotPower = shotPower * _G.ShotRangeMultiplier
-                            end
-                            
-                            ball.Velocity = direction * shotPower
-                        end
-                    end
-                end)
+-- Quick Mobile Shot (Single Tap)
+local function quickMobileShot()
+    pcall(function()
+        local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
+        if ball then
+            local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
+            if hoop then
+                -- Perfect shot calculation for mobile
+                local targetPos = hoop.Position + Vector3.new(0, 4, 0)
+                local direction = (targetPos - ball.Position).Unit
+                local power = 45
+                
+                if _G.ExtendShotRange then
+                    power = power * _G.ShotRangeMultiplier
+                end
+                
+                ball.Velocity = direction * power
+                
+                if touchButtons["Status"] then
+                    touchButtons["Status"].Text = "Quick Shot Fired!"
+                    wait(2)
+                    updateMobileUI()
+                end
             end
         end
     end)
 end
 
--- Rayfield UI
-local MainTab = Window:CreateTab("MyCourt Hacks", nil)
+-- Mobile God Mode
+local function activateMobileGodMode()
+    _G.AutoShoot = true
+    _G.AutoGreen = true
+    _G.ExtendShotRange = true
+    _G.AlwaysMakeShots = true
+    
+    setupMobileAutoShoot()
+    setupMobileAutoGreen()
+    setupMobileRange()
+    
+    updateMobileUI()
+    
+    if touchButtons["Status"] then
+        touchButtons["Status"].Text = "GOD MODE ACTIVATED!"
+        touchButtons["Status"].TextColor3 = Color3.fromRGB(255, 215, 0)
+    end
+end
 
--- Court Status
-local StatusSection = MainTab:CreateSection("Court Status")
-local CourtLabel = MainTab:CreateLabel("Detecting Court Type...")
+-- Mobile Touch Detection
+local function setupMobileTouchDetection()
+    -- Detect screen touches that might be shoot attempts
+    UserInputService.TouchStarted:Connect(function(touch, gameProcessed)
+        if gameProcessed then return end
+        
+        -- If auto-green is on, enhance any potential shot
+        if _G.AutoGreen then
+            pcall(function()
+                local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
+                if ball then
+                    local hoop = workspace:FindFirstChild("Hoop") or workspace:FindFirstChild("Basket")
+                    if hoop then
+                        -- Perfect the shot
+                        local direction = (hoop.Position - ball.Position).Unit
+                        ball.Velocity = direction * 35
+                    end
+                end
+            end)
+        end
+    end)
+end
 
--- Auto-Shoot Section
-local AutoShootSection = MainTab:CreateSection("MyCourt Auto-Shoot")
+-- Rayfield UI (for desktop users who might see this)
+local MainTab = Window:CreateTab("Mobile Hacks", nil)
+local MobileSection = MainTab:CreateSection("Mobile Controls")
+
+local MobileStatus = MainTab:CreateLabel("Device: Detecting...")
 
 local AutoShootToggle = MainTab:CreateToggle({
-    Name = "Auto-Shoot in MyCourt",
+    Name = "Auto-Shoot (Mobile)",
     CurrentValue = false,
     Flag = "AutoShoot",
     Callback = function(Value)
         _G.AutoShoot = Value
         if Value then
-            setupMyCourtAutoShoot()
-            Rayfield:Notify({
-                Title = "MyCourt Auto-Shoot",
-                Content = "Automatic shooting activated",
-                Duration = 3,
-            })
+            setupMobileAutoShoot()
         end
+        updateMobileUI()
     end,
 })
 
--- Auto-Green Section
-local AutoGreenSection = MainTab:CreateSection("MyCourt Auto-Green")
-
 local AutoGreenToggle = MainTab:CreateToggle({
-    Name = "Auto-Green (Always Score)",
+    Name = "Auto-Green (Mobile)",
     CurrentValue = true,
     Flag = "AutoGreen",
     Callback = function(Value)
         _G.AutoGreen = Value
         if Value then
-            setupMyCourtAutoGreen()
-            Rayfield:Notify({
-                Title = "MyCourt Auto-Green",
-                Content = "Perfect shots guaranteed",
-                Duration = 3,
-            })
+            setupMobileAutoGreen()
         end
+        updateMobileUI()
     end,
 })
 
--- Range Section
-local RangeSection = MainTab:CreateSection("MyCourt Range")
-
 local RangeToggle = MainTab:CreateToggle({
-    Name = "Extend Shot Range",
+    Name = "Extend Range (Mobile)",
     CurrentValue = false,
     Flag = "ExtendShotRange",
     Callback = function(Value)
         _G.ExtendShotRange = Value
         if Value then
-            setupMyCourtRange()
-            Rayfield:Notify({
-                Title = "MyCourt Range Extended",
-                Content = "Longer shooting range activated",
-                Duration = 3,
-            })
+            setupMobileRange()
         end
+        updateMobileUI()
     end,
 })
 
--- Quick Actions
-local ActionsSection = MainTab:CreateSection("MyCourt Quick Actions")
-
-local PerfectPractice = MainTab:CreateButton({
-    Name = "Perfect Practice Mode",
-    Callback = function()
-        _G.AutoShoot = true
-        _G.AutoGreen = true
-        _G.ExtendShotRange = true
-        AutoShootToggle:Set(true)
-        AutoGreenToggle:Set(true)
-        RangeToggle:Set(true)
-        setupMyCourtAutoShoot()
-        setupMyCourtAutoGreen()
-        setupMyCourtRange()
+-- Initialize based on device
+spawn(function()
+    wait(2)
+    if isMobile() then
+        MobileStatus:Set("Device: Mobile ✓ Touch UI Created")
+        createMobileUI()
+        setupMobileTouchDetection()
         Rayfield:Notify({
-            Title = "Perfect Practice",
-            Content = "Auto-shoot + Auto-green + Max range",
+            Title = "Mobile Mode Activated",
+            Content = "Touch controls enabled for MyCourt",
+            Duration = 5,
+        })
+    else
+        MobileStatus:Set("Device: Desktop - Using Standard UI")
+        Rayfield:Notify({
+            Title = "Desktop Mode",
+            Content = "Using standard interface",
             Duration = 3,
         })
-    end,
-})
-
-local RefreshCourt = MainTab:CreateButton({
-    Name = "Refresh Court Detection",
-    Callback = function()
-        if isInMyCourt() then
-            CourtLabel:Set("Status: MyCourt Detected ✓")
-            Rayfield:Notify({
-                Title = "MyCourt Detected",
-                Content = "All features optimized for MyCourt",
-                Duration = 3,
-            })
-        else
-            CourtLabel:Set("Status: Regular Game Detected")
-            Rayfield:Notify({
-                Title = "Regular Game",
-                Content = "Using standard game features",
-                Duration = 3,
-            })
-        end
-    end,
-})
-
--- Initialize
-setupMyCourtShootDetection()
-setupMyCourtAutoGreen()
-
--- Set court status
-if isInMyCourt() then
-    CourtLabel:Set("Status: MyCourt Detected ✓")
-else
-    CourtLabel:Set("Status: Regular Game Detected")
-end
+    end
+    
+    -- Start auto-green by default
+    setupMobileAutoGreen()
+end)
 
 Rayfield:Notify({
-    Title = "MyCourt Hacks Loaded",
-    Content = "Optimized for MyCourt practice",
+    Title = "Mobile Basketball Hacks",
+    Content = "Optimized for touch screen",
     Duration = 5,
 })
 
-print("MyCourt Basketball Hacks initialized!")
-print("Court Type: " .. (isInMyCourt() and "MyCourt" or "Regular Game"))
+print("Mobile Basketball Hacks initialized!")
