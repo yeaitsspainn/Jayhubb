@@ -3,18 +3,13 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "RH2 Basketball Visualizer",
-   LoadingTitle = "RH2 Visualizer",
-   LoadingSubtitle = "by Sirius",
+   Name = "RH2 Range Extender + AC Bypass",
+   LoadingTitle = "Range Extender Pro",
+   LoadingSubtitle = "With Anti-Cheat Protection",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "RH2Config"
-   },
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink",
-      RememberJoins = true
+      FileName = "RH2ProConfig"
    },
    KeySystem = false,
 })
@@ -22,250 +17,373 @@ local Window = Rayfield:CreateWindow({
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
 local LocalPlayer = Players.LocalPlayer
 
--- Configuration
-_G.ShowShotRange = false
-_G.ShowDunkRange = false
-_G.ShowPassRange = false
-_G.RangeDistance = 30
+-- Range Extension Settings
+_G.ExtendShotRange = false
+_G.ShotRangeMultiplier = 2.0
+_G.ExtendDunkRange = false
+_G.DunkRangeMultiplier = 2.0
+_G.NoRangeLimit = false
 
--- Visualizer Parts
-local rangeVisualizers = {}
+-- Anti-Cheat Bypass Settings
+_G.HideScripts = true
+_G.SpoofMemory = true
+_G.AntiKick = true
+_G.ClearLogs = true
+_G.SimulateLegit = true
 
--- Create Range Visualizer
-local function createRH2Visualizer(position, radius, locationType)
-    local color = Color3.fromRGB(255, 0, 0) -- Default red
-    
-    -- Different colors for different types
-    if locationType == "Hoop" then
-        color = Color3.fromRGB(255, 0, 0) -- Red for hoops
-    elseif locationType == "ThreePoint" then
-        color = Color3.fromRGB(255, 165, 0) -- Orange for 3-point
-    elseif locationType == "Dunk" then
-        color = Color3.fromRGB(0, 0, 255) -- Blue for dunk
-    elseif locationType == "Teammate" then
-        color = Color3.fromRGB(0, 255, 0) -- Green for teammates
+-- Anti-Cheat Bypass Functions
+local function setupBypasses()
+    -- Hide scripts from detection
+    if _G.HideScripts then
+        pcall(function()
+            for _, v in pairs(getreg()) do
+                if type(v) == "function" and is_synapse_function(v) then
+                    hookfunction(v, function(...) return ... end)
+                end
+            end
+        end)
     end
-    
-    local visualizer = Instance.new("Part")
-    visualizer.Name = "RH2RangeVisualizer"
-    visualizer.Shape = Enum.PartType.Ball
-    visualizer.Material = Enum.Material.Neon
-    visualizer.Color = color
-    visualizer.Transparency = 0.8
-    visualizer.Anchored = true
-    visualizer.CanCollide = false
-    visualizer.Size = Vector3.new(radius * 2, radius * 2, radius * 2)
-    visualizer.Position = position
-    visualizer.Parent = workspace
-    
-    -- Billboard GUI for info
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 200, 0, 60)
-    billboard.StudsOffset = Vector3.new(0, radius + 3, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = visualizer
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 0.7
-    label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    label.Text = locationType .. "\nRange: " .. radius .. " studs"
-    label.TextColor3 = color
-    label.TextScaled = true
-    label.Parent = billboard
-    
-    table.insert(rangeVisualizers, visualizer)
-    return visualizer
+
+    -- Spoof memory readings
+    if _G.SpoofMemory then
+        pcall(function()
+            local oldgcinfo = gcinfo
+            gcinfo = function() return math.random(45, 65) end
+        end)
+    end
+
+    -- Anti-kick protection
+    if _G.AntiKick then
+        pcall(function()
+            LocalPlayer.Kick:Connect(function()
+                return nil
+            end)
+        end)
+    end
+
+    -- Clear execution logs
+    if _G.ClearLogs then
+        pcall(function()
+            rconsoleclear()
+            game:GetService("LogService").MessageOut:Connect(function() end)
+        end)
+    end
 end
 
--- Find RH2 Locations
-local function findRH2Locations()
-    local locations = {}
-    
-    -- Find basketball hoops
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("hoop") or obj.Name:lower():find("basket") or obj.Name:lower():find("rim") then
-            if obj:IsA("Part") or obj:IsA("MeshPart") then
-                table.insert(locations, {
-                    Part = obj,
-                    Position = obj.Position,
-                    Name = "Hoop: " .. obj.Name,
-                    Type = "Hoop"
-                })
-            end
-        end
-    end
-    
-    -- Find court areas
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("court") or obj.Name:lower():find("floor") then
-            if obj:IsA("Part") then
-                table.insert(locations, {
-                    Part = obj,
-                    Position = obj.Position,
-                    Name = "Court: " .. obj.Name,
-                    Type = "Court"
-                })
-            end
-        end
-    end
-    
-    -- Find three-point line
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("three") or obj.Name:lower():find("3pt") then
-            if obj:IsA("Part") then
-                table.insert(locations, {
-                    Part = obj,
-                    Position = obj.Position,
-                    Name = "3-Point: " .. obj.Name,
-                    Type = "ThreePoint"
-                })
-            end
-        end
-    end
-    
-    -- If no locations found, create default positions
-    if #locations == 0 then
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local rootPos = char.HumanoidRootPart.Position
-            table.insert(locations, {
-                Position = rootPos + Vector3.new(0, 0, 50),
-                Name = "Default Hoop",
-                Type = "Hoop"
-            })
-            table.insert(locations, {
-                Position = rootPos + Vector3.new(25, 0, 0),
-                Name = "Default 3-Point",
-                Type = "ThreePoint"
-            })
-        end
-    end
-    
-    return locations
-end
-
--- Update Visualizers
-local function updateRH2Visualizers()
-    -- Clear existing visualizers
-    for _, visualizer in pairs(rangeVisualizers) do
-        if visualizer and visualizer.Parent then
-            visualizer:Destroy()
-        end
-    end
-    rangeVisualizers = {}
-    
-    if not _G.ShowShotRange and not _G.ShowDunkRange and not _G.ShowPassRange then
-        return
-    end
-    
-    local locations = findRH2Locations()
-    
-    for _, location in pairs(locations) do
-        if _G.ShowShotRange and (location.Type == "Hoop" or location.Type == "ThreePoint") then
-            createRH2Visualizer(location.Position, _G.RangeDistance, location.Type)
-        end
+-- Hook common detection methods
+local function hookDetections()
+    pcall(function()
+        -- Hook _G checks
+        local oldG = _G
+        setreadonly(_G, false)
         
-        if _G.ShowDunkRange and location.Type == "Court" then
-            createRH2Visualizer(location.Position, _G.RangeDistance, "Dunk")
+        -- Hook remote event monitoring
+        for _, obj in pairs(game:GetDescendants()) do
+            if obj:IsA("RemoteEvent") then
+                local oldFireServer = obj.FireServer
+                obj.FireServer = function(self, ...)
+                    local args = {...}
+                    -- Filter out suspicious arguments
+                    for i, arg in pairs(args) do
+                        if type(arg) == "string" and arg:find("cheat") or arg:find("hack") then
+                            args[i] = "legit_action"
+                        end
+                    end
+                    return oldFireServer(self, unpack(args))
+                end
+            end
         end
-    end
+    end)
+end
+
+-- Fake legitimate player behavior
+local function simulateLegitBehavior()
+    if not _G.SimulateLegit then return end
     
-    print("Created " .. #rangeVisualizers .. " visualizers")
+    spawn(function()
+        while wait(math.random(3, 8)) do
+            pcall(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    -- Simulate normal player mistakes and human behavior
+                    local humanoid = LocalPlayer.Character.Humanoid
+                    
+                    -- Occasionally miss shots naturally
+                    if math.random(1, 10) == 1 then
+                        humanoid.Jump = true
+                    end
+                    
+                    -- Random small movements
+                    if math.random(1, 5) == 1 then
+                        humanoid:Move(Vector3.new(
+                            math.random(-10, 10),
+                            0,
+                            math.random(-10, 10)
+                        ))
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Range Extension Functions
+local function extendRanges()
+    if _G.ExtendShotRange or _G.ExtendDunkRange or _G.NoRangeLimit then
+        spawn(function()
+            while _G.ExtendShotRange or _G.ExtendDunkRange or _G.NoRangeLimit do
+                wait(0.2)
+                pcall(function()
+                    -- Hook into shooting mechanics with anti-detection
+                    for _, obj in pairs(game:GetDescendants()) do
+                        if obj:IsA("RemoteEvent") and (obj.Name:lower():find("shoot") or obj.Name:lower():find("shot") or obj.Name:lower():find("dunk")) then
+                            local oldFireServer = obj.FireServer
+                            if not obj.__hooked then
+                                obj.__hooked = true
+                                obj.FireServer = function(self, ...)
+                                    local args = {...}
+                                    -- Modify range parameters stealthily
+                                    if _G.ExtendShotRange and type(args[1]) == "number" then
+                                        args[1] = args[1] * _G.ShotRangeMultiplier
+                                    end
+                                    if _G.ExtendDunkRange and type(args[2]) == "number" then
+                                        args[2] = args[2] * _G.DunkRangeMultiplier
+                                    end
+                                    if _G.NoRangeLimit then
+                                        -- Remove all range limitations
+                                        for i, arg in pairs(args) do
+                                            if type(arg) == "number" and arg > 50 then
+                                                args[i] = arg * 1.5
+                                            end
+                                        end
+                                    end
+                                    return oldFireServer(self, unpack(args))
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Modify character properties subtly
+                    local character = LocalPlayer.Character
+                    if character then
+                        local humanoid = character:FindFirstChild("Humanoid")
+                        if humanoid and _G.ExtendShotRange then
+                            -- Slightly increase jump power for better shots
+                            humanoid.JumpPower = math.min(55, humanoid.JumpPower + 5)
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+end
+
+-- Modify basketball physics for longer range
+local function modifyBallPhysics()
+    spawn(function()
+        while _G.ExtendShotRange do
+            wait(2)
+            pcall(function()
+                local ball = workspace:FindFirstChild("Basketball") or workspace:FindFirstChild("Ball")
+                if ball then
+                    -- Reduce gravity effect subtly
+                    local bodyForce = ball:FindFirstChild("BodyForce") or Instance.new("BodyForce")
+                    bodyForce.Force = Vector3.new(0, workspace.Gravity * -0.2, 0)
+                    bodyForce.Parent = ball
+                end
+            end)
+        end
+    end)
+end
+
+-- Auto-aim with human-like imperfections
+local function addSmartShotAssist()
+    spawn(function()
+        while _G.ExtendShotRange do
+            wait(0.7)
+            pcall(function()
+                local hoops = {}
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj.Name:lower():find("hoop") or obj.Name:lower():find("basket") or obj.Name:lower():find("rim") then
+                        table.insert(hoops, obj)
+                    end
+                end
+                
+                if #hoops > 0 then
+                    local character = LocalPlayer.Character
+                    if character then
+                        local root = character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            local nearestHoop = hoops[1]
+                            local distance = (root.Position - nearestHoop.Position).Magnitude
+                            
+                            -- Only assist when actually useful and add slight imperfection
+                            if distance > 30 and _G.ExtendShotRange then
+                                local direction = (nearestHoop.Position - root.Position).Unit
+                                -- Add slight random offset to seem human
+                                local offset = Vector3.new(
+                                    math.random(-2, 2),
+                                    math.random(-1, 1),
+                                    math.random(-2, 2)
+                                )
+                                root.CFrame = CFrame.new(root.Position, root.Position + direction + offset * 0.1)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
 end
 
 -- Rayfield UI
-local MainTab = Window:CreateTab("RH2 Visualizer", nil)
-local VisualizerSection = MainTab:CreateSection("Basketball Range Settings")
+local MainTab = Window:CreateTab("Range Extender Pro", nil)
+local RangeSection = MainTab:CreateSection("Range Settings")
 
 -- Shot Range Toggle
 local ShotToggle = MainTab:CreateToggle({
-    Name = "Show Shot Range",
+    Name = "Extend Shot Range",
     CurrentValue = false,
-    Flag = "ShowShotRange",
+    Flag = "ExtendShotRange",
     Callback = function(Value)
-        _G.ShowShotRange = Value
-        updateRH2Visualizers()
+        _G.ExtendShotRange = Value
+        if Value then
+            extendRanges()
+            modifyBallPhysics()
+            addSmartShotAssist()
+            Rayfield:Notify({
+                Title = "Range Extended",
+                Content = "Shot range increased + AC Protection",
+                Duration = 3,
+            })
+        end
+    end,
+})
+
+-- Shot Range Multiplier
+local ShotMultiplier = MainTab:CreateSlider({
+    Name = "Shot Range Multiplier",
+    Range = {1.0, 5.0},
+    Increment = 0.5,
+    Suffix = "x",
+    CurrentValue = 2.0,
+    Flag = "ShotRangeMultiplier",
+    Callback = function(Value)
+        _G.ShotRangeMultiplier = Value
     end,
 })
 
 -- Dunk Range Toggle
 local DunkToggle = MainTab:CreateToggle({
-    Name = "Show Dunk Range", 
+    Name = "Extend Dunk Range",
     CurrentValue = false,
-    Flag = "ShowDunkRange",
+    Flag = "ExtendDunkRange",
     Callback = function(Value)
-        _G.ShowDunkRange = Value
-        updateRH2Visualizers()
-    end,
-})
-
--- Range Slider
-local Slider = MainTab:CreateSlider({
-    Name = "Range Distance",
-    Range = {10, 50},
-    Increment = 5,
-    Suffix = "studs",
-    CurrentValue = 30,
-    Flag = "RangeDistance",
-    Callback = function(Value)
-        _G.RangeDistance = Value
-        if _G.ShowShotRange or _G.ShowDunkRange then
-            updateRH2Visualizers()
+        _G.ExtendDunkRange = Value
+        if Value then
+            extendRanges()
+            Rayfield:Notify({
+                Title = "Dunk Range Extended",
+                Content = "Dunk range increased + AC Protection",
+                Duration = 3,
+            })
         end
     end,
 })
 
--- Refresh Button
-local Button = MainTab:CreateButton({
-    Name = "Refresh Visualizers",
+-- No Range Limit Toggle
+local NoLimitToggle = MainTab:CreateToggle({
+    Name = "No Range Limit",
+    CurrentValue = false,
+    Flag = "NoRangeLimit",
+    Callback = function(Value)
+        _G.NoRangeLimit = Value
+        if Value then
+            extendRanges()
+            Rayfield:Notify({
+                Title = "No Limits",
+                Content = "All range limits removed + AC Protection",
+                Duration = 3,
+            })
+        end
+    end,
+})
+
+local ACBypassSection = MainTab:CreateSection("Anti-Cheat Protection")
+
+-- Anti-Cheat Toggles
+local HideToggle = MainTab:CreateToggle({
+    Name = "Hide Scripts",
+    CurrentValue = true,
+    Flag = "HideScripts",
+    Callback = function(Value)
+        _G.HideScripts = Value
+        if Value then setupBypasses() end
+    end,
+})
+
+local SpoofToggle = MainTab:CreateToggle({
+    Name = "Spoof Memory",
+    CurrentValue = true,
+    Flag = "SpoofMemory",
+    Callback = function(Value)
+        _G.SpoofMemory = Value
+        if Value then setupBypasses() end
+    end,
+})
+
+local SimulateToggle = MainTab:CreateToggle({
+    Name = "Simulate Human Behavior",
+    CurrentValue = true,
+    Flag = "SimulateLegit",
+    Callback = function(Value)
+        _G.SimulateLegit = Value
+        if Value then simulateLegitBehavior() end
+    end,
+})
+
+-- Quick Actions
+local ActionsSection = MainTab:CreateSection("Quick Actions")
+
+local Auto3Point = MainTab:CreateButton({
+    Name = "Activate 3-Point Mode",
     Callback = function()
-        updateRH2Visualizers()
+        _G.ExtendShotRange = true
+        _G.ShotRangeMultiplier = 3.0
+        ShotToggle:Set(true)
+        ShotMultiplier:Set(3.0)
         Rayfield:Notify({
-            Title = "RH2 Visualizer",
-            Content = "Visualizers refreshed",
-            Duration = 2,
+            Title = "3-Point Mode Active",
+            Content = "Perfect for long-range shots",
+            Duration = 3,
         })
     end,
 })
 
--- Cleanup Button
-local CleanButton = MainTab:CreateButton({
-    Name = "Clear All Visualizers",
+local ActivateAll = MainTab:CreateButton({
+    Name = "Activate All Protections",
     Callback = function()
-        for _, visualizer in pairs(rangeVisualizers) do
-            if visualizer and visualizer.Parent then
-                visualizer:Destroy()
-            end
-        end
-        rangeVisualizers = {}
-        _G.ShowShotRange = false
-        _G.ShowDunkRange = false
-        ShotToggle:Set(false)
-        DunkToggle:Set(false)
+        setupBypasses()
+        hookDetections()
+        simulateLegitBehavior()
+        Rayfield:Notify({
+            Title = "All Systems Active",
+            Content = "Range extender + AC bypass enabled",
+            Duration = 3,
+        })
     end,
 })
 
--- Auto-cleanup when player leaves
-game:GetService("Players").PlayerRemoving:Connect(function(player)
-    if player == LocalPlayer then
-        for _, visualizer in pairs(rangeVisualizers) do
-            if visualizer and visualizer.Parent then
-                visualizer:Destroy()
-            end
-        end
-    end
-end)
+-- Initialize everything
+setupBypasses()
+hookDetections()
+simulateLegitBehavior()
 
--- Initialization
 Rayfield:Notify({
-    Title = "RH2 Visualizer Loaded",
-    Content = "Toggle ranges to see visual spheres",
+    Title = "RH2 Range Extender Pro Loaded",
+    Content = "With integrated anti-cheat protection",
     Duration = 5,
 })
 
-print("RH2 Basketball Visualizer loaded successfully!")
+print("RH2 Range Extender Pro + AC Bypass initialized")
