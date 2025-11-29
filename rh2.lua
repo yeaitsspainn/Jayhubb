@@ -3,13 +3,13 @@ getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Teleport Combat",
-   LoadingTitle = "Blink Fighter",
-   LoadingSubtitle = "Teleport + Game Mechanics",
+   Name = "Real Damage Combat",
+   LoadingTitle = "50 Damage Per Hit",
+   LoadingSubtitle = "Server-Sided Damage",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "TeleportCombatConfig"
+      FileName = "RealDamageConfig"
    },
    KeySystem = false,
 })
@@ -17,122 +17,129 @@ local Window = Rayfield:CreateWindow({
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- Combat Settings
-_G.TeleportKill = false
-_G.BlinkCombat = false
-_G.ComboMode = false
-_G.TeleportDelay = 0.2
-_G.UseGameMoves = true
-_G.AutoExecute = false
+-- Damage Settings
+_G.RealDamage = false
+_G.DamagePerHit = 50
+_G.TeleportPunch = false
+_G.ForceServerDamage = true
+_G.DamageAll = false
 
--- Anti-Cheat
-_G.HideTeleports = true
-_G.RandomizeTP = true
-_G.LegitTeleport = false
+-- Find server-sided damage methods
+local function findServerDamageMethods()
+    local methods = {}
+    
+    for _, obj in pairs(game:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local name = obj.Name:lower()
+            -- Look for damage-related remotes that are likely server-sided
+            if name:find("damage") or name:find("hit") or name:find("punch") or 
+               name:find("attack") or name:find("strike") or name:find("hurt") then
+                table.insert(methods, {Object = obj, Type = obj.ClassName})
+            end
+        end
+    end
+    
+    return methods
+end
 
--- Teleport to target and use game mechanics
-local function teleportAndAttack(target)
+-- Send server-sided damage
+local function sendServerDamage(target, damageAmount)
     pcall(function()
-        local character = LocalPlayer.Character
+        local damageMethods = findServerDamageMethods()
         local targetChar = target.Character
+        local targetHumanoid = targetChar and targetChar:FindFirstChild("Humanoid")
         
-        if not character or not character:FindFirstChild("HumanoidRootPart") then
-            return
+        if not targetHumanoid then return end
+        
+        -- Store original health to verify damage
+        local originalHealth = targetHumanoid.Health
+        
+        -- METHOD 1: Try all damage remotes with different parameter formats
+        for _, method in pairs(damageMethods) do
+            local remote = method.Object
+            
+            if remote:IsA("RemoteEvent") then
+                -- Try different parameter combinations that games commonly use
+                remote:FireServer(target, damageAmount)
+                remote:FireServer(targetChar, damageAmount)
+                remote:FireServer(targetHumanoid, damageAmount)
+                remote:FireServer("damage", target, damageAmount)
+                remote:FireServer("hit", target, damageAmount)
+                remote:FireServer(target, "damage", damageAmount)
+                remote:FireServer(damageAmount, target)
+                remote:FireServer({Target = target, Damage = damageAmount})
+                remote:FireServer({target, damageAmount})
+            elseif remote:IsA("RemoteFunction") then
+                pcall(function() remote:InvokeServer(target, damageAmount) end)
+                pcall(function() remote:InvokeServer(targetChar, damageAmount) end)
+                pcall(function() remote:InvokeServer("damage", target, damageAmount) end)
+            end
         end
         
-        if not targetChar or not targetChar:FindFirstChild("HumanoidRootPart") then
-            return
-        end
-        
-        local targetRoot = targetChar.HumanoidRootPart
-        local myRoot = character.HumanoidRootPart
-        
-        -- Calculate teleport position (behind target)
-        local offset = CFrame.new(0, 0, 3) -- 3 studs behind
-        local teleportCFrame = targetRoot.CFrame * offset
-        
-        -- Add randomness if enabled
-        if _G.RandomizeTP then
-            local randomOffset = Vector3.new(
-                math.random(-2, 2),
-                0,
-                math.random(-2, 2)
-            )
-            teleportCFrame = teleportCFrame + randomOffset
-        end
-        
-        -- Teleport
-        myRoot.CFrame = teleportCFrame
-        
-        -- Wait a moment
-        wait(0.1)
-        
-        -- Face the target
-        myRoot.CFrame = CFrame.new(myRoot.Position, targetRoot.Position)
-        
-        -- USE GAME MECHANICS TO ATTACK:
-        
-        -- Method 1: Look for and use game weapons/tools
-        for _, tool in pairs(character:GetChildren()) do
-            if tool:IsA("Tool") then
-                -- Activate tool
-                tool:Activate()
-                
-                -- Fire tool remotes
-                for _, remote in pairs(tool:GetDescendants()) do
-                    if remote:IsA("RemoteEvent") then
-                        remote:FireServer(target)
-                        remote:FireServer(targetChar)
-                        remote:FireServer("hit")
+        -- METHOD 2: Look for weapon systems and use them
+        local character = LocalPlayer.Character
+        if character then
+            for _, tool in pairs(character:GetChildren()) do
+                if tool:IsA("Tool") then
+                    -- Activate tool
+                    tool:Activate()
+                    
+                    -- Fire tool damage remotes
+                    for _, remote in pairs(tool:GetDescendants()) do
+                        if remote:IsA("RemoteEvent") then
+                            remote:FireServer(target, damageAmount)
+                            remote:FireServer(targetChar, damageAmount)
+                            remote:FireServer("damage", damageAmount, target)
+                        end
                     end
                 end
             end
         end
         
-        -- Method 2: Use game attack remotes
+        -- METHOD 3: Combat system remotes (common in fighting games)
         for _, remote in pairs(game:GetDescendants()) do
             if remote:IsA("RemoteEvent") then
                 local name = remote.Name:lower()
-                if name:find("punch") or name:find("hit") or name:find("attack") or name:find("damage") then
-                    remote:FireServer(target)
-                    remote:FireServer(targetChar)
-                    remote:FireServer("attack")
+                if name:find("combat") or name:find("fight") or name:find("battle") then
+                    remote:FireServer("attack", target, damageAmount)
+                    remote:FireServer("damage", target, damageAmount)
                 end
             end
         end
         
-        -- Method 3: Touch damage (common in fighting games)
-        firetouchinterest(myRoot, targetRoot, 0)
-        wait()
-        firetouchinterest(myRoot, targetRoot, 1)
-        
-        -- Method 4: Direct humanoid damage as backup
-        local targetHumanoid = targetChar:FindFirstChild("Humanoid")
-        if targetHumanoid then
-            targetHumanoid:TakeDamage(25)
-        end
-        
-        -- Method 5: Look for combat scripts and trigger them
-        for _, script in pairs(character:GetDescendants()) do
-            if script:IsA("Script") or script:IsA("LocalScript") then
-                if script.Name:lower():find("combat") or script.Name:lower():find("attack") then
-                    pcall(function() script:FireServer("attack", target) end)
+        -- METHOD 4: Player vs Player damage systems
+        for _, remote in pairs(game:GetDescendants()) do
+            if remote:IsA("RemoteEvent") then
+                local name = remote.Name:lower()
+                if name:find("pvp") or name:find("player") then
+                    remote:FireServer("damage_player", target, damageAmount)
+                    remote:FireServer("player_hit", target, damageAmount)
                 end
             end
         end
         
-        print("✅ Teleported and attacked: " .. target.Name)
+        -- Verify damage was applied
+        wait(0.1)
+        local newHealth = targetHumanoid.Health
+        if newHealth < originalHealth then
+            print("✅ Real damage applied: " .. target.Name .. " took " .. (originalHealth - newHealth) .. " damage")
+        else
+            print("❌ No damage detected - trying alternative methods...")
+            -- Fallback to direct damage if server methods fail
+            if _G.ForceServerDamage then
+                targetHumanoid:TakeDamage(damageAmount)
+            end
+        end
     end)
 end
 
--- Main teleport combat loop
-local function startTeleportCombat()
+-- Main real damage system
+local function startRealDamage()
     spawn(function()
-        while _G.TeleportKill do
-            wait(_G.TeleportDelay)
+        while _G.RealDamage do
+            wait(0.2)
             
             pcall(function()
                 local targets = {}
@@ -147,17 +154,30 @@ local function startTeleportCombat()
                     end
                 end
                 
-                if #targets > 0 then
-                    -- Teleport to each target and attack
-                    for _, target in pairs(targets) do
-                        if _G.BlinkCombat then
-                            -- Blink mode: Quick teleports
-                            teleportAndAttack(target)
-                            wait(0.1)
-                        else
-                            -- Normal mode: Sequential
-                            teleportAndAttack(target)
-                            wait(_G.TeleportDelay)
+                -- Apply damage to all targets
+                for _, target in pairs(targets) do
+                    sendServerDamage(target, _G.DamagePerHit)
+                    
+                    -- If teleport punch is enabled, move to target first
+                    if _G.TeleportPunch then
+                        local character = LocalPlayer.Character
+                        local targetChar = target.Character
+                        
+                        if character and character:FindFirstChild("HumanoidRootPart") and
+                           targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+                            
+                            -- Teleport close to target
+                            local targetPos = targetChar.HumanoidRootPart.Position
+                            local offset = CFrame.new(0, 0, 3)
+                            character.HumanoidRootPart.CFrame = CFrame.new(targetPos) * offset
+                            
+                            -- Face the target
+                            character.HumanoidRootPart.CFrame = CFrame.new(
+                                character.HumanoidRootPart.Position,
+                                targetPos
+                            )
+                            
+                            wait(0.1) -- Small delay before damage
                         end
                     end
                 end
@@ -166,267 +186,207 @@ local function startTeleportCombat()
     end)
 end
 
--- Combo Mode: Chain attacks on single target
-local function startComboMode()
+-- Damage all players globally (regardless of distance)
+local function damageAllPlayers()
     spawn(function()
-        while _G.ComboMode do
-            wait(0.5)
-            
-            pcall(function()
-                -- Find nearest target for combo
-                local nearest = nil
-                local nearestDist = math.huge
-                local character = LocalPlayer.Character
-                
-                if not character or not character:FindFirstChild("HumanoidRootPart") then
-                    return
-                end
-                
-                local myRoot = character.HumanoidRootPart
-                
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Character then
-                        local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
-                        if targetRoot then
-                            local dist = (myRoot.Position - targetRoot.Position).Magnitude
-                            if dist < nearestDist then
-                                nearestDist = dist
-                                nearest = player
-                            end
-                        end
-                    end
-                end
-                
-                if nearest then
-                    -- Combo: Teleport + multiple attacks
-                    for i = 1, 3 do -- 3-hit combo
-                        teleportAndAttack(nearest)
-                        wait(0.2)
-                    end
-                end
-            end)
-        end
-    end)
-end
-
--- Auto-execute moves (uses game's actual combat system)
-local function autoExecuteMoves()
-    spawn(function()
-        while _G.AutoExecute do
+        while _G.DamageAll do
             wait(0.3)
             
             pcall(function()
-                local character = LocalPlayer.Character
-                if not character then return end
-                
-                -- Find and use special moves/abilities
-                for _, remote in pairs(game:GetDescendants()) do
-                    if remote:IsA("RemoteEvent") then
-                        local name = remote.Name:lower()
-                        
-                        -- Look for special moves
-                        if name:find("special") or name:find("ultimate") or name:find("ability") or name:find("move") then
-                            remote:FireServer("activate")
-                            remote:FireServer("use")
-                        end
-                        
-                        -- Look for combo moves
-                        if name:find("combo") or name:find("finisher") or name:find("execute") then
-                            remote:FireServer()
+                for _, target in pairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer and target.Character then
+                        local humanoid = target.Character:FindFirstChild("Humanoid")
+                        if humanoid and humanoid.Health > 0 then
+                            sendServerDamage(target, _G.DamagePerHit)
                         end
                     end
-                end
-                
-                -- Use keyboard inputs for moves (common in fighting games)
-                local keys = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R, Enum.KeyCode.F, Enum.KeyCode.G}
-                for _, key in pairs(keys) do
-                    UserInputService:SendKeyEvent(true, key, false, game)
-                    UserInputService:SendKeyEvent(false, key, false, game)
                 end
             end)
         end
     end)
 end
 
--- Find game-specific combat mechanics
-local function scanCombatMechanics()
-    local mechanics = {}
-    
+-- Test damage on single target
+local function testDamage()
     pcall(function()
-        -- Look for combat remotes
-        for _, remote in pairs(game:GetDescendants()) do
-            if remote:IsA("RemoteEvent") then
-                local name = remote.Name:lower()
-                if name:find("punch") or name:find("kick") or name:find("hit") or name:find("attack") or name:find("combo") then
-                    table.insert(mechanics, "Remote: " .. remote.Name)
+        local targets = {}
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                table.insert(targets, player)
+            end
+        end
+        
+        if #targets > 0 then
+            local target = targets[1]
+            local targetHumanoid = target.Character:FindFirstChild("Humanoid")
+            if targetHumanoid then
+                local originalHealth = targetHumanoid.Health
+                sendServerDamage(target, _G.DamagePerHit)
+                
+                wait(0.2)
+                local newHealth = targetHumanoid.Health
+                local damageDealt = originalHealth - newHealth
+                
+                if damageDealt > 0 then
+                    Rayfield:Notify({
+                        Title = "Damage Test Successful",
+                        Content = "Dealt " .. damageDealt .. " damage to " .. target.Name,
+                        Duration = 4,
+                    })
+                else
+                    Rayfield:Notify({
+                        Title = "Damage Test Failed",
+                        Content = "No damage detected - trying fallback methods",
+                        Duration = 4,
+                    })
                 end
             end
         end
-        
-        -- Look for weapons/tools
-        for _, tool in pairs(workspace:GetDescendants()) do
-            if tool:IsA("Tool") then
-                table.insert(mechanics, "Weapon: " .. tool.Name)
-            end
-        end
-        
-        -- Look for combat scripts
-        for _, script in pairs(game:GetDescendants()) do
-            if script:IsA("Script") and script.Name:lower():find("combat") then
-                table.insert(mechanics, "Script: " .. script.Name)
-            end
-        end
     end)
-    
-    return mechanics
 end
 
 -- Rayfield UI
-local MainTab = Window:CreateTab("Teleport Combat", nil)
+local MainTab = Window:CreateTab("Real Damage", nil)
 
--- Teleport Settings
-local TeleportSection = MainTab:CreateSection("Teleport Combat")
+-- Damage Settings
+local DamageSection = MainTab:CreateSection("Damage Settings")
+
+local DamageToggle = MainTab:CreateToggle({
+    Name = "Real Damage Mode",
+    CurrentValue = false,
+    Flag = "RealDamage",
+    Callback = function(Value)
+        _G.RealDamage = Value
+        if Value then
+            startRealDamage()
+            Rayfield:Notify({
+                Title = "Real Damage Active",
+                Content = "Applying server-sided damage",
+                Duration = 3,
+            })
+        end
+    end,
+})
 
 local TeleportToggle = MainTab:CreateToggle({
-    Name = "Teleport Kill Mode",
+    Name = "Teleport + Punch",
     CurrentValue = false,
-    Flag = "TeleportKill",
+    Flag = "TeleportPunch",
     Callback = function(Value)
-        _G.TeleportKill = Value
+        _G.TeleportPunch = Value
+    end,
+})
+
+local DamageAllToggle = MainTab:CreateToggle({
+    Name = "Damage All Players",
+    CurrentValue = false,
+    Flag = "DamageAll",
+    Callback = function(Value)
+        _G.DamageAll = Value
         if Value then
-            startTeleportCombat()
+            damageAllPlayers()
             Rayfield:Notify({
-                Title = "Teleport Combat Active",
-                Content = "Blinking to targets and attacking",
+                Title = "Damage All Active",
+                Content = "Global damage to all players",
                 Duration = 3,
             })
         end
     end,
 })
 
-local BlinkToggle = MainTab:CreateToggle({
-    Name = "Blink Combat (Fast)",
-    CurrentValue = false,
-    Flag = "BlinkCombat",
+local DamageSlider = MainTab:CreateSlider({
+    Name = "Damage Per Hit",
+    Range = {10, 100},
+    Increment = 5,
+    Suffix = "damage",
+    CurrentValue = 50,
+    Flag = "DamagePerHit",
     Callback = function(Value)
-        _G.BlinkCombat = Value
-    end,
-})
-
-local ComboToggle = MainTab:CreateToggle({
-    Name = "Combo Mode",
-    CurrentValue = false,
-    Flag = "ComboMode",
-    Callback = function(Value)
-        _G.ComboMode = Value
-        if Value then
-            startComboMode()
-            Rayfield:Notify({
-                Title = "Combo Mode Active",
-                Content = "3-hit combos on nearest target",
-                Duration = 3,
-            })
-        end
-    end,
-})
-
-local DelaySlider = MainTab:CreateSlider({
-    Name = "Teleport Delay",
-    Range = {0.1, 1.0},
-    Increment = 0.1,
-    Suffix = "seconds",
-    CurrentValue = 0.2,
-    Flag = "TeleportDelay",
-    Callback = function(Value)
-        _G.TeleportDelay = Value
-    end,
-})
-
--- Game Mechanics
-local MechanicsSection = MainTab:CreateSection("Game Mechanics")
-
-local AutoExecuteToggle = MainTab:CreateToggle({
-    Name = "Auto-Execute Moves",
-    CurrentValue = false,
-    Flag = "AutoExecute",
-    Callback = function(Value)
-        _G.AutoExecute = Value
-        if Value then
-            autoExecuteMoves()
-            Rayfield:Notify({
-                Title = "Auto-Execute Active",
-                Content = "Using game special moves automatically",
-                Duration = 3,
-            })
-        end
+        _G.DamagePerHit = Value
     end,
 })
 
 -- Quick Actions
 local ActionsSection = MainTab:CreateSection("Quick Actions")
 
-local NinjaMode = MainTab:CreateButton({
-    Name = "Activate Ninja Mode",
-    Callback = function()
-        _G.TeleportKill = true
-        _G.BlinkCombat = true
-        _G.AutoExecute = true
-        TeleportToggle:Set(true)
-        BlinkToggle:Set(true)
-        AutoExecuteToggle:Set(true)
-        startTeleportCombat()
-        autoExecuteMoves()
-        Rayfield:Notify({
-            Title = "Ninja Mode Active",
-            Content = "Instant teleports + special moves",
-            Duration = 4,
-        })
-    end,
+local TestDamageBtn = MainTab:CreateButton({
+    Name = "Test Damage System",
+    Callback = testDamage
 })
 
-local ScanMoves = MainTab:CreateButton({
-    Name = "Scan Combat Mechanics",
+local ScanDamageBtn = MainTab:CreateButton({
+    Name = "Scan Damage Methods",
     Callback = function()
-        local mechanics = scanCombatMechanics()
-        local message = "Found " .. #mechanics .. " combat mechanics:\n"
-        for i, mech in ipairs(mechanics) do
+        local methods = findServerDamageMethods()
+        local message = "Found " .. #methods .. " damage methods:\n"
+        for i, method in ipairs(methods) do
             if i <= 6 then
-                message = message .. "• " .. mech .. "\n"
+                message = message .. "• " .. method.Type .. ": " .. method.Object.Name .. "\n"
             end
         end
         Rayfield:Notify({
-            Title = "Combat Mechanics",
+            Title = "Damage Methods",
             Content = message,
             Duration = 6,
         })
     end,
 })
 
--- Status
-local StatusSection = MainTab:CreateSection("Status")
-local CombatStatus = MainTab:CreateLabel("Ready to fight")
+local MaxDamageMode = MainTab:CreateButton({
+    Name = "Activate Max Damage",
+    Callback = function()
+        _G.RealDamage = true
+        _G.DamageAll = true
+        _G.TeleportPunch = true
+        _G.DamagePerHit = 100
+        DamageToggle:Set(true)
+        DamageAllToggle:Set(true)
+        TeleportToggle:Set(true)
+        DamageSlider:Set(100)
+        startRealDamage()
+        damageAllPlayers()
+        Rayfield:Notify({
+            Title = "Max Damage Mode",
+            Content = "100 damage to all players + teleport",
+            Duration = 4,
+        })
+    end,
+})
 
--- Update status
+-- Status
+local StatusSection = MainTab:CreateSection("Damage Status")
+local DamageStatus = MainTab:CreateLabel("Testing damage methods...")
+
+-- Update status with damage verification
 spawn(function()
     while true do
-        wait(2)
-        local targetCount = 0
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local humanoid = player.Character:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    targetCount = targetCount + 1
+        wait(3)
+        pcall(function()
+            local totalDamage = 0
+            local damagedPlayers = 0
+            
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local humanoid = player.Character:FindFirstChild("Humanoid")
+                    if humanoid then
+                        -- Check if player has taken damage recently
+                        if humanoid.Health < humanoid.MaxHealth then
+                            damagedPlayers = damagedPlayers + 1
+                            totalDamage = totalDamage + (humanoid.MaxHealth - humanoid.Health)
+                        end
+                    end
                 end
             end
-        end
-        CombatStatus:Set("Alive Targets: " .. targetCount)
+            
+            DamageStatus:Set("Damaged: " .. damagedPlayers .. " | Total: " .. totalDamage .. " HP")
+        end)
     end
 end)
 
 Rayfield:Notify({
-    Title = "Teleport Combat Loaded",
-    Content = "Blink behind enemies and use game mechanics",
+    Title = "Real Damage System Loaded",
+    Content = "Focusing on server-sided damage methods",
     Duration = 5,
 })
 
-print("⚡ Teleport Combat system initialized!")
+print("💥 Real Damage System initialized - Targeting server-sided damage!")
