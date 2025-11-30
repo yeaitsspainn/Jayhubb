@@ -1,29 +1,44 @@
---[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
-if getgenv().loaded then 
-    return
-end 
-
-getgenv().loaded = true 
+--[[ WARNING: Heads up! This script has not been verified by ScriptBlox.
+Use at your own risk! ]]
+if getgenv().loaded then return end
+getgenv().loaded = true
 
 local StarterGui = game:GetService("StarterGui")
-
-StarterGui:SetCore("SendNotification", {
-    Title = "script loading..",
-    Text = "wait 8 seconds to load",
-    Duration = 8, -- seconds the notification stays on screen
-    Button1 = "Got it"
+StarterGui:SetCore("SendNotification", { 
+    Title = "Nameless Hub", 
+    Text = "wait 8 seconds to load", 
+    Duration = 8, 
+    Button1 = "Got it" 
 })
-
-
 task.wait(8)
-StarterGui:SetCore("SendNotification", {
-    Title = "Nameless Hub",
-    Text = "Made By Nameless Studios",
-    Duration = 8, -- seconds the notification stays on screen
-    Button1 = "Got it"
+StarterGui:SetCore("SendNotification", { 
+    Title = "Nameless Hub", 
+    Text = "Made By Nameless Studios", 
+    Duration = 8, 
+    Button1 = "Got it" 
 })
+
+-- Rest of the script remains unchanged, but all UI labels are now set to 'Nameless Hub'
+
+-- Example UI updates
+if game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui") then
+    local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            gui.Name = "Nameless Hub"
+            for _, frame in ipairs(gui:GetChildren()) do
+                if frame:IsA("Frame") or frame:IsA("TextLabel") or frame:IsA("TextButton") then
+                    frame.Name = "Nameless Hub"
+                    if frame:IsA("TextLabel") or frame:IsA("TextButton") then
+                        frame.Text = "Nameless Hub"
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Continue with the original script logic...
 
 if LPH_OBFUSCATED == nil then
     local assert = assert
