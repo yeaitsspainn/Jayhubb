@@ -2,8 +2,18 @@
 	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
 ]]
 local S, E = pcall(function()
-    _G.Stepped:Disconnect()
-    _G.InputBegan:Disconnect()
+    if _G.Stepped then
+        _G.Stepped:Disconnect()
+    end
+    if _G.InputBegan then
+        _G.InputBegan:Disconnect()
+    end
+    if _G.TouchTap then
+        _G.TouchTap:Disconnect()
+    end
+    if _G.TouchGui then
+        _G.TouchGui:Destroy()
+    end
 end)
 
 if S then
@@ -15,21 +25,123 @@ if S then
 
     _G.Stepped = nil
     _G.InputBegan = nil
+    _G.TouchTap = nil
+    _G.TouchGui = nil
 end
 
 local Player = game.Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Playground = (game.PlaceId == 4923146720)
 local IsInFooting = false
 
+-- Create mobile button for shooting
+local function CreateMobileButton()
+    if _G.TouchGui then
+        _G.TouchGui:Destroy()
+    end
+    
+    local TouchGui = Instance.new("ScreenGui")
+    TouchGui.Name = "MobileShootGui"
+    TouchGui.DisplayOrder = 10
+    TouchGui.ResetOnSpawn = false
+    TouchGui.Parent = Player.PlayerGui
+    
+    local ShootButton = Instance.new("TextButton")
+    ShootButton.Name = "ShootButton"
+    ShootButton.Text = "SHOOT (X)"
+    ShootButton.TextScaled = true
+    ShootButton.Font = Enum.Font.GothamBold
+    ShootButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ShootButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    ShootButton.BackgroundTransparency = 0.3
+    ShootButton.Size = UDim2.new(0, 120, 0, 120)
+    ShootButton.Position = UDim2.new(1, -140, 1, -140)
+    ShootButton.AnchorPoint = Vector2.new(0.5, 0.5)
+    ShootButton.Parent = TouchGui
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0.3, 0)
+    UICorner.Parent = ShootButton
+    
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = Color3.fromRGB(255, 255, 255)
+    UIStroke.Thickness = 3
+    UIStroke.Parent = ShootButton
+    
+    -- Make button draggable
+    local Dragging = false
+    local DragInput, DragStart, StartPos
+    
+    local function Update(input)
+        local Delta = input.Position - DragStart
+        ShootButton.Position = UDim2.new(
+            StartPos.X.Scale, 
+            StartPos.X.Offset + Delta.X,
+            StartPos.Y.Scale, 
+            StartPos.Y.Offset + Delta.Y
+        )
+    end
+    
+    ShootButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Dragging = true
+            DragStart = input.Position
+            StartPos = ShootButton.Position
+            
+            -- Visual feedback when pressing
+            ShootButton.BackgroundTransparency = 0.1
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    Dragging = false
+                    ShootButton.BackgroundTransparency = 0.3
+                end
+            end)
+        end
+    end)
+    
+    ShootButton.InputChanged:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) and Dragging then
+            DragInput = input
+        end
+    end)
+    
+    ShootButton.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            ShootButton.BackgroundTransparency = 0.3
+        end
+    end)
+    
+    UIS.InputChanged:Connect(function(input)
+        if input == DragInput and Dragging then
+            Update(input)
+        end
+    end)
+    
+    _G.TouchGui = TouchGui
+    _G.ShootButton = ShootButton
+end
+
+-- Initialize mobile UI
+CreateMobileButton()
+
 local HL = Instance.new("Highlight")
 HL.Enabled = false
-HL.Adornee = Player.Character
+if Player.Character then
+    HL.Adornee = Player.Character
+end
 HL.FillColor = Color3.fromRGB(25, 255, 25)
 HL.OutlineColor = Color3.fromRGB(0, 255, 0)
 HL.Parent = game:GetService("CoreGui")
+
+-- Character added event
+Player.CharacterAdded:Connect(function(character)
+    HL.Adornee = character
+    task.wait(1)
+end)
 
 local Goals = {} do
     for _, Obj in next, game:GetDescendants() do
@@ -83,9 +195,9 @@ end
 local RemoveKeyFromKeyTable = function()
     local StartTime = tick()
     
-    repeat task.wait() until Player.Character == nil or Player.Character:FindFirstChild("Basketball") == nil or StartTime - tick() > 1.5
+    repeat task.wait() until Player.Character == nil or Player.Character:FindFirstChild("Basketball") == nil or tick() - StartTime > 1.5
     
-    if Player.Character == nil or StartTime - tick() > 1.5 then
+    if Player.Character == nil or tick() - StartTime > 1.5 then
         return print("Didnt remove key")
     end
     
@@ -121,6 +233,10 @@ local GetRandomizedTable = function(TorsoPosition, ShootPosition)
 end
 
 local GetGoal = function()
+    if not Player.Character or not Player.Character:FindFirstChild("Torso") then
+        return nil
+    end
+    
     local Distance, Goal = 9e9
     
     for _, Obj in next, Goals do
@@ -137,16 +253,28 @@ end
 
 local GetDistance = function()
     local Goal = GetGoal()
+    if not Player.Character or not Player.Character:FindFirstChild("Torso") or not Goal then
+        return 0
+    end
+    
     local TorsoPosition = Player.Character.Torso.Position
     
     return (TorsoPosition - Goal.Position).Magnitude
 end
 
 local GetDirection = function(Position)
+    if not Player.Character or not Player.Character:FindFirstChild("Torso") then
+        return Vector3.new(0, 1, 0)
+    end
+    
     return (Position - Player.Character.Torso.Position).Unit
 end
 
 local GetMoveDirection = function()
+    if not Player.Character or not Player.Character:FindFirstChild("Humanoid") then
+        return Vector3.new(0, 0, 0)
+    end
+    
     local Direction = Player.Character.Humanoid.MoveDirection * 1.8
     
     if UIS:IsKeyDown(Enum.KeyCode.S) == true and UIS:IsKeyDown(Enum.KeyCode.W) == true then
@@ -161,10 +289,19 @@ local GetMoveDirection = function()
 end
 
 local GetBasketball = function()
+    if not Player.Character then
+        return nil
+    end
+    
     return Player.Character:FindFirstChildOfClass("Folder")
 end
 
 local InFootingCheck = function()
+    if not Player.Character or not Player.Character:FindFirstChild("Humanoid") then
+        IsInFooting = false
+        return
+    end
+    
     local Distance = GetDistance()
     local Basketball = GetBasketball()
     
@@ -202,7 +339,7 @@ local InFootingCheck = function()
             IsInFooting = true
         else
             IsInFooting = false
-            end
+        end
     elseif Power == 90 then
         if Distance > 57 and Distance < 74 then
             IsInFooting = true
@@ -334,9 +471,18 @@ local GetArc = function()
 end
 
 getgenv().Shoot = function()
+    if not Player.Character or not Player.Character:FindFirstChild("Basketball") then
+        return
+    end
+    
     local Goal = GetGoal()
     local Arc = GetArc()
     local MoveDirection = GetMoveDirection()
+    
+    if not Goal or not Arc then
+        return
+    end
+    
     local Hit = (Goal.Position + Vector3.new(0, Arc, 0) + MoveDirection)
     local Direction = GetDirection(Hit)
     local RandomizedArgs = GetRandomizedTable(Player.Character.Torso.Position, Direction)
@@ -345,7 +491,6 @@ getgenv().Shoot = function()
     
     if Playground == true then
         local Clock = GetClock()
-        
         Key = Key .. Clock
     end
     
@@ -356,8 +501,8 @@ getgenv().Shoot = function()
     end
 end
 
-_G.InputBegan = UIS.InputBegan:Connect(function(Key, GPE)
-    if not GPE and Key.KeyCode == Enum.KeyCode.X and Player.Character and Player.Character:FindFirstChild("Basketball") and IsInFooting then
+local function PerformShoot()
+    if Player.Character and Player.Character:FindFirstChild("Basketball") and IsInFooting then
         if Player.Character.Humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
             Player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
             task.wait(0.25)
@@ -365,10 +510,42 @@ _G.InputBegan = UIS.InputBegan:Connect(function(Key, GPE)
         
         Shoot()
     end
+end
+
+-- Keyboard input
+_G.InputBegan = UIS.InputBegan:Connect(function(Key, GPE)
+    if not GPE and Key.KeyCode == Enum.KeyCode.X and Player.Character and Player.Character:FindFirstChild("Basketball") and IsInFooting then
+        PerformShoot()
+    end
 end)
+
+-- Mobile touch input
+if _G.ShootButton then
+    _G.ShootButton.MouseButton1Click:Connect(function()
+        PerformShoot()
+    end)
+    
+    _G.ShootButton.TouchTap:Connect(function()
+        PerformShoot()
+    end)
+end
+
+-- Update mobile button visibility
+local function UpdateMobileButton()
+    if _G.ShootButton then
+        if IsInFooting then
+            _G.ShootButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)  -- Green when ready
+            _G.ShootButton.Text = "SHOOT READY"
+        else
+            _G.ShootButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)  -- Blue when not ready
+            _G.ShootButton.Text = "SHOOT (X)"
+        end
+    end
+end
 
 _G.Stepped = RS.Stepped:Connect(function()
     InFootingCheck()
+    UpdateMobileButton()
     
     if IsInFooting then
         HL.Enabled = true
@@ -376,7 +553,40 @@ _G.Stepped = RS.Stepped:Connect(function()
         HL.Enabled = false
     end
     
-    if HL.Adornee.Parent == nil and Player.Character then
-        HL.Adornee = Player.Character
+    if HL.Adornee == nil or HL.Adornee.Parent == nil then
+        if Player.Character then
+            HL.Adornee = Player.Character
+        end
     end
 end)
+
+-- Handle device type changes
+UIS.LastInputTypeChanged:Connect(function(lastInputType)
+    if lastInputType == Enum.UserInputType.Touch then
+        -- Mobile device detected
+        if _G.TouchGui then
+            _G.TouchGui.Enabled = true
+        end
+    else
+        -- Keyboard/mouse detected
+        if _G.TouchGui then
+            _G.TouchGui.Enabled = false  -- Hide button on PC
+        end
+    end
+end)
+
+-- Initial device check
+if UIS.TouchEnabled and UIS.MouseEnabled == false then
+    -- Mobile device
+    if _G.TouchGui then
+        _G.TouchGui.Enabled = true
+    end
+else
+    -- PC device
+    if _G.TouchGui then
+        _G.TouchGui.Enabled = false
+    end
+end
+
+print("Silent Aim loaded successfully! Mobile support enabled.")
+print("Press X or tap the mobile button when highlighted to shoot.")
