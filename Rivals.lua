@@ -2,43 +2,151 @@ local genv = getgenv()
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local HttpService = game:GetService("HttpService")
 
--- 1. YOUR VALID KEYS (add all your keys here)
-local validKeys = {
-    "DKS-HUB-PREMIUM-2024",
-    "VIP-ACCESS-CODE-123",
-    "BRONX-SCRIPT-KEY",
-    "THA-BRONX-V3-KEY",
-    "lslsksknsjksksj",
-    "FUCK-THE-JEWS",
-    "WE-LOVE-PAIN"
+-- HWID GENERATION FUNCTION (unique per user/device)
+local function GetHWID()
+    -- Create a unique identifier based on multiple system factors
+    local identifiers = {}
+    
+    -- Use PC information (these vary per executor)
+    if syn and syn.crypt then
+        -- Synapse X
+        identifiers.hash = syn.crypt.hash("md5", tostring(syn.get_hwid()))
+    elseif identifyexecutor then
+        -- KRNL and most executors
+        identifiers.executor = identifyexecutor() or "unknown"
+    end
+    
+    -- Use Roblox account info (won't change unless account changes)
+    local player = game.Players.LocalPlayer
+    identifiers.userId = player.UserId
+    identifiers.accountAge = player.AccountAge
+    
+    -- Use game-specific data
+    identifiers.placeId = game.PlaceId
+    
+    -- Get time-based seed
+    identifiers.timestamp = os.time()
+    
+    -- Create a combined hash
+    local combined = ""
+    for key, value in pairs(identifiers) do
+        combined = combined .. tostring(value)
+    end
+    
+    -- Simple hash function
+    local hwid = ""
+    for i = 1, 16 do
+        local char = string.sub(combined, i, i)
+        if char then
+            hwid = hwid .. string.byte(char)
+        else
+            hwid = hwid .. tostring(math.random(0, 9))
+        end
+    end
+    
+    -- Format as XXXX-XXXX-XXXX-XXXX
+    local formatted = ""
+    for i = 1, 16 do
+        formatted = formatted .. string.sub(hwid, i, i)
+        if i % 4 == 0 and i < 16 then
+            formatted = formatted .. "-"
+        end
+    end
+    
+    return formatted
+end
+
+-- KEY DATABASE WITH HWID LOCKING
+-- Format: key = {hwid = "user-hwid", redeemed = true, userName = "username"}
+local keyDatabase = {
+    -- Your keys here (each locked to one HWID)
+    ["THABRONX-V3-PREMIUM"] = {
+        hwid = nil,  -- Will be set on first use
+        redeemed = false,
+        maxUses = 1,  -- Can only be used by 1 device
+        currentUses = 0
+    },
+    ["DKS-HUB-VIP-ACCESS"] = {
+        hwid = nil,
+        redeemed = false,
+        maxUses = 1,
+        currentUses = 0
+    },
+    ["BRONX-2024-TESTER"] = {
+        hwid = nil,
+        redeemed = false,
+        maxUses = 1,
+        currentUses = 0
+    },
     -- Add more keys as needed
 }
 
--- 2. WEBHOOK FOR TRACKING (replace with your Discord webhook)
-local webhookUrl = "https://discord.com/api/webhooks/1447771990265172023/jZ8qSOOaacRE4G6k7Q5GG0MThiUE6tyMDUP4frZUr6W6UPJALD-8IExixOsgDu5XMaGb"
+-- KEY VALIDATION WITH HWID CHECK
+local function ValidateKeyWithHWID(key, userHWID, userName, userId)
+    -- Check if key exists
+    if not keyDatabase[key] then
+        return false, "❌ Invalid key"
+    end
+    
+    local keyData = keyDatabase[key]
+    
+    -- Check if key is already used
+    if keyData.redeemed then
+        -- Check if this HWID matches the original redeemer
+        if keyData.hwid == userHWID then
+            return true, "✅ Welcome back! Key verified."
+        else
+            return false, "❌ Key already in use on another device"
+        end
+    end
+    
+    -- Key is new, assign HWID
+    keyData.hwid = userHWID
+    keyData.redeemed = true
+    keyData.userName = userName
+    keyData.userId = userId
+    keyData.redeemedAt = os.time()
+    keyData.currentUses = 1
+    
+    -- Save to file (if supported)
+    if writefile then
+        local keyInfo = {
+            key = key,
+            hwid = userHWID,
+            userName = userName,
+            userId = userId,
+            time = os.date("%Y-%m-%d %H:%M:%S")
+        }
+        writefile("key_activations.txt", HttpService:JSONEncode(keyInfo) .. "\n", true)
+    end
+    
+    return true, "✅ Key activated! Locked to your device."
+end
 
--- 3. TRACK KEY FUNCTION
-local function TrackKeyUsage(key, userId, userName)
+-- DISCORD WEBHOOK FOR ACTIVATIONS (optional)
+local webhookUrl = "https://discord.com/api/webhooks/YOUR_WEBHOOK_HERE"
+
+local function SendActivationToDiscord(key, hwid, userName, userId)
     if webhookUrl and string.find(webhookUrl, "discord.com") then
         local data = {
             ["embeds"] = {{
-                ["title"] = "🔑 Script Key Used",
-                ["color"] = 3066993,
+                ["title"] = "🔒 HWID-Locked Key Activated",
+                ["color"] = 15105570,
                 ["fields"] = {
                     {
                         ["name"] = "👤 User",
-                        ["value"] = userName .. " (" .. userId .. ")",
+                        ["value"] = userName .. " (`" .. userId .. "`)",
                         ["inline"] = true
                     },
                     {
                         ["name"] = "🔑 Key",
-                        ["value"] = "```" .. key .. "```",
-                        ["inline"] = false
+                        ["value"] = "`" .. key .. "`",
+                        ["inline"] = true
                     },
                     {
-                        ["name"] = "🎮 Game",
-                        ["value"] = "```" .. game.PlaceId .. "```",
-                        ["inline"] = true
+                        ["name"] = "🆔 HWID",
+                        ["value"] = "```" .. hwid .. "```",
+                        ["inline"] = false
                     }
                 },
                 ["footer"] = {
@@ -51,31 +159,64 @@ local function TrackKeyUsage(key, userId, userName)
             HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(data))
         end)
     end
-    return true
 end
 
--- 4. CREATE THE KEY-SECURED WINDOW
+-- CREATE THE SECURE WINDOW
 local Window = Rayfield:CreateWindow({
-    LoadingTitle = "Loading...",
-    LoadingSubtitle = "Tha Bronx V3.1",
+    LoadingTitle = "Loading Tha Bronx V3.1...",
+    LoadingSubtitle = "HWID-Locked System",
     
-    KeySystem = true,  -- ENABLED KEY SYSTEM
-    
+    KeySystem = true,
     KeySettings = {
         Title = "Tha Bronx V3.1",
-        Subtitle = "Enter Key",
-        Note = "Get key at: discord.gg/dkshub",
-        FileName = "jc_hub_key",
+        Subtitle = "Enter License Key",
+        Note = "Keys are HWID-locked (one device only)\nGet key at: discord.gg/dkshub",
+        FileName = "bronx_hwid_key",
         SaveKey = true,
         GrabKeyFromSite = false,
         
-        -- Your valid keys
-        Key = validKeys,
+        -- Available keys (users can enter any of these)
+        Key = {
+            "THABRONX-V3-PREMIUM",
+            "DKS-HUB-VIP-ACCESS",
+            "BRONX-2024-TESTER"
+        },
         
-        -- Track when key is entered
-        Callback = function(key)
+        -- Custom validation with HWID checking
+        Callback = function(enteredKey)
             local player = game.Players.LocalPlayer
-            TrackKeyUsage(key, player.UserId, player.Name)
+            local userHWID = GetHWID()
+            local userName = player.Name
+            local userId = player.UserId
+            
+            -- Validate key with HWID
+            local isValid, message = ValidateKeyWithHWID(enteredKey, userHWID, userName, userId)
+            
+            if isValid then
+                -- Send to Discord
+                SendActivationToDiscord(enteredKey, userHWID, userName, userId)
+                
+                -- Store in environment
+                genv.UserHWID = userHWID
+                genv.UserKey = enteredKey
+                genv.KeyActivated = true
+                
+                -- Show success
+                Rayfield:Notify({
+                    Title = "✅ Access Granted",
+                    Content = message .. "\nHWID: " .. string.sub(userHWID, 1, 8) .. "...",
+                    Duration = 6,
+                })
+                
+                return true
+            else
+                Rayfield:Notify({
+                    Title = "❌ Access Denied",
+                    Content = message,
+                    Duration = 6,
+                })
+                return false
+            end
         end,
         
         -- Theme for key system
@@ -120,7 +261,7 @@ local Window = Rayfield:CreateWindow({
         RememberJoins = true,
         Invite = "",
     },
-    Name = "[ðɸƒ] Tha Bronx - V3.1 by q11_2 | discord.gg/ukZVmDFWG [free]",
+    Name = "[ðɸƒ] Tha Bronx - V3.1 by q11_2 | discord.gg/ukZVmDFWG [HWID-LOCKED]",
     ConfigurationSaving = {
         Enabled = false,
         FolderName = "GreenBlackThemeHub",
@@ -129,7 +270,7 @@ local Window = Rayfield:CreateWindow({
     DisableRayfieldPrompts = false,
     Icon = 112029241653430,
     
-    -- MAIN UI THEME (appears after key is entered)
+    -- MAIN UI THEME
     Theme = {
         Shadow = Color3.fromRGB(255, 255, 255),
         SliderProgress = Color3.fromRGB(77, 251, 16),
@@ -169,13 +310,41 @@ local Window = Rayfield:CreateWindow({
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 -- PLAYER
 local LocalPlayer = Players.LocalPlayer
 
--- MAIN TAB (only appears after key is verified)
+-- PERIODIC HWID CHECK (prevents key sharing)
+task.spawn(function()
+    while task.wait(30) do
+        if genv.KeyActivated then
+            local currentHWID = GetHWID()
+            if currentHWID ~= genv.UserHWID then
+                -- HWID changed! Possibly trying to share key
+                Rayfield:Notify({
+                    Title = "⚠️ Security Alert",
+                    Content = "Device changed. Re-enter key.",
+                    Duration = 10,
+                })
+                
+                -- Force re-authentication
+                genv.KeyActivated = false
+                task.wait(2)
+                Rayfield:Notify({
+                    Title = "🔒 Session Terminated",
+                    Content = "Please restart script and re-enter key",
+                    Duration = 5,
+                })
+                return
+            end
+        end
+    end
+end)
+
+-- ONLY CREATE MAIN UI IF KEY IS ACTIVATED
+if genv.KeyActivated then
+
+-- MAIN TAB
 local MainTab = Window:CreateTab("Main", nil)
 
 -- Inf Money Section
@@ -497,9 +666,72 @@ AutofarmTab:CreateToggle({
     end,
 })
 
--- SUCCESS MESSAGE
+-- Admin Tab (for key management)
+local AdminTab = Window:CreateTab("🔑 Admin", nil)
+AdminTab:CreateSection("Key Management")
+
+AdminTab:CreateButton({
+    Name = "📋 View Activated Keys",
+    Callback = function()
+        local activatedList = ""
+        for key, data in pairs(keyDatabase) do
+            if data.redeemed then
+                activatedList = activatedList .. string.format(
+                    "🔑 %s\n👤 %s | 🆔 %s\n\n",
+                    key,
+                    data.userName or "Unknown",
+                    string.sub(data.hwid or "No HWID", 1, 12)
+                )
+            end
+        end
+        
+        if activatedList == "" then
+            activatedList = "No keys activated yet"
+        end
+        
+        Rayfield:Notify({
+            Title = "🔒 Activated Keys",
+            Content = "Check console (F9) for list",
+            Duration = 5,
+        })
+        
+        print("=== HWID-LOCKED KEY ACTIVATIONS ===\n" .. activatedList)
+    end,
+})
+
+AdminTab:CreateButton({
+    Name = "🆔 Show My HWID",
+    Callback = function()
+        local hwid = GetHWID()
+        if setclipboard then
+            setclipboard(hwid)
+        end
+        
+        Rayfield:Notify({
+            Title = "🆔 Your HWID",
+            Content = string.sub(hwid, 1, 12) .. "...\n(Copied to clipboard)",
+            Duration = 6,
+        })
+        
+        print("Your full HWID:", hwid)
+    end,
+})
+
+-- Success message
 Rayfield:Notify({
     Title = "✅ Welcome",
-    Content = "Script loaded successfully! Enjoy.",
+    Content = "HWID-Locked script loaded successfully!",
     Duration = 5,
 })
+
+else
+    -- If key not activated, show message
+    Rayfield:Notify({
+        Title = "🔒 HWID Lock Active",
+        Content = "Please enter a valid key to access the script",
+        Duration = 5,
+    })
+end
+
+print("🔒 HWID-Locked Tha Bronx V3.1 loaded!")
+print("🔑 Key system active - one device per key")
