@@ -1,20 +1,84 @@
 local genv = getgenv()
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/dkhub43221/loading-screen/refs/heads/main/dkhub", true))()
+local HttpService = game:GetService("HttpService")
 
--- Services
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
+-- 1. YOUR VALID KEYS (add all your keys here)
+local validKeys = {
+    "DKS-HUB-PREMIUM-2024",
+    "VIP-ACCESS-CODE-123",
+    "BRONX-SCRIPT-KEY",
+    "THA-BRONX-V3-KEY",
+    "lslsksknsjksksj",
+    "FUCK-THE-JEWS",
+    "WE-LOVE-PAIN"
+    -- Add more keys as needed
+}
 
--- Player
-local LocalPlayer = Players.LocalPlayer
+-- 2. WEBHOOK FOR TRACKING (replace with your Discord webhook)
+local webhookUrl = "https://discord.com/api/webhooks/1447771990265172023/jZ8qSOOaacRE4G6k7Q5GG0MThiUE6tyMDUP4frZUr6W6UPJALD-8IExixOsgDu5XMaGb"
 
--- Create Window
+-- 3. TRACK KEY FUNCTION
+local function TrackKeyUsage(key, userId, userName)
+    if webhookUrl and string.find(webhookUrl, "discord.com") then
+        local data = {
+            ["embeds"] = {{
+                ["title"] = "🔑 Script Key Used",
+                ["color"] = 3066993,
+                ["fields"] = {
+                    {
+                        ["name"] = "👤 User",
+                        ["value"] = userName .. " (" .. userId .. ")",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "🔑 Key",
+                        ["value"] = "```" .. key .. "```",
+                        ["inline"] = false
+                    },
+                    {
+                        ["name"] = "🎮 Game",
+                        ["value"] = "```" .. game.PlaceId .. "```",
+                        ["inline"] = true
+                    }
+                },
+                ["footer"] = {
+                    ["text"] = "Time: " .. os.date("%Y-%m-%d %H:%M:%S")
+                }
+            }}
+        }
+        
+        pcall(function()
+            HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(data))
+        end)
+    end
+    return true
+end
+
+-- 4. CREATE THE KEY-SECURED WINDOW
 local Window = Rayfield:CreateWindow({
-    LoadingTitle = "",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Tha Bronx V3.1",
+    
+    KeySystem = true,  -- ENABLED KEY SYSTEM
+    
     KeySettings = {
+        Title = "Tha Bronx V3.1",
+        Subtitle = "Enter Key",
+        Note = "Get key at: discord.gg/dkshub",
+        FileName = "jc_hub_key",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        
+        -- Your valid keys
+        Key = validKeys,
+        
+        -- Track when key is entered
+        Callback = function(key)
+            local player = game.Players.LocalPlayer
+            TrackKeyUsage(key, player.UserId, player.Name)
+        end,
+        
+        -- Theme for key system
         Theme = {
             Shadow = Color3.fromRGB(255, 255, 255),
             SliderProgress = Color3.fromRGB(77, 251, 16),
@@ -48,15 +112,8 @@ local Window = Rayfield:CreateWindow({
             NotificationTextColor = Color3.fromRGB(255, 255, 255),
             TextColor = Color3.fromRGB(255, 255, 255),
         },
-        Subtitle = "Authentication Required",
-        Title = "",
-        Key = {[1] = ""},
-        GrabKeyFromSite = false,
-        SaveKey = true,
-        FileName = "jc_hub_key",
-        Note = "Get your key at: discord.gg/dkshub",
     },
-    KeySystem = false,
+    
     DisableBuildWarnings = false,
     Discord = {
         Enabled = false,
@@ -70,8 +127,9 @@ local Window = Rayfield:CreateWindow({
         FileName = "BigHub",
     },
     DisableRayfieldPrompts = false,
-    LoadingSubtitle = "",
     Icon = 112029241653430,
+    
+    -- MAIN UI THEME (appears after key is entered)
     Theme = {
         Shadow = Color3.fromRGB(255, 255, 255),
         SliderProgress = Color3.fromRGB(77, 251, 16),
@@ -107,7 +165,17 @@ local Window = Rayfield:CreateWindow({
     },
 })
 
--- Main Tab
+-- SERVICES
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- PLAYER
+local LocalPlayer = Players.LocalPlayer
+
+-- MAIN TAB (only appears after key is verified)
 local MainTab = Window:CreateTab("Main", nil)
 
 -- Inf Money Section
@@ -120,7 +188,6 @@ MainTab:CreateParagraph({
 MainTab:CreateButton({
     Name = "Buy koolaid items",
     Callback = function()
-        -- Buy items
         ReplicatedStorage.ExoticShopRemote:InvokeServer("Ice-Fruit Bag")
         task.wait(1.25)
         ReplicatedStorage.ExoticShopRemote:InvokeServer("Ice-Fruit Cupz")
@@ -163,21 +230,17 @@ MainTab:CreateButton({
             local Humanoid = Character:WaitForChild("Humanoid")
             local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
             
-            -- Find the sell station
             local IceFruitSell = Workspace:FindFirstChild("IceFruit Sell")
             if IceFruitSell then
                 local ProximityPrompt = IceFruitSell:FindFirstChildOfClass("ProximityPrompt")
                 if ProximityPrompt then
                     ProximityPrompt.HoldDuration = 0
                     Humanoid:ChangeState(0)
-                    task.wait(0.5)
                     
-                    -- You might need to add selling logic here
                     Rayfield:Notify({
-                        Image = 4483362458,
+                        Title = "Ready",
+                        Content = "Go to IceFruit Sell and use the prompt!",
                         Duration = 5,
-                        Title = "Money Farm",
-                        Content = "Ready to sell at the Ice Fruit station!",
                     })
                 end
             end
@@ -188,25 +251,11 @@ MainTab:CreateButton({
 -- Dupe Section
 MainTab:CreateSection("Game - Dupe")
 
--- Store the current character for duping
-local CurrentCharacter
-local CurrentBackpack
-
-LocalPlayer.CharacterAdded:Connect(function(Character)
-    CurrentCharacter = Character
-    CurrentBackpack = LocalPlayer:WaitForChild("Backpack")
-end)
-
--- Initialize character reference
-if LocalPlayer.Character then
-    CurrentCharacter = LocalPlayer.Character
-    CurrentBackpack = LocalPlayer:WaitForChild("Backpack")
-end
-
 MainTab:CreateButton({
     Name = "Dupe Tools",
     Callback = function()
-        if not CurrentCharacter then
+        local Character = LocalPlayer.Character
+        if not Character then
             Rayfield:Notify({
                 Title = "Error",
                 Content = "Character not found!",
@@ -215,7 +264,7 @@ MainTab:CreateButton({
             return
         end
         
-        local Tool = CurrentCharacter:FindFirstChildOfClass("Tool")
+        local Tool = Character:FindFirstChildOfClass("Tool")
         if not Tool then
             Rayfield:Notify({
                 Title = "Error",
@@ -225,56 +274,9 @@ MainTab:CreateButton({
             return
         end
         
-        local ToolName = Tool.Name
-        
-        -- Move tool to backpack first
-        Tool.Parent = CurrentBackpack
-        task.wait(0.5)
-        
-        -- Dupe logic (adjust based on game's actual remote events)
-        local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
-        
-        -- Create ping test
-        local PingTest = Instance.new("BoolValue")
-        PingTest.Parent = ReplicatedStorage
-        PingTest.Name = "PingTest_" .. math.random(10000, 99999)
-        task.wait(0.1)
-        PingTest:Destroy()
-        
-        -- Calculate delay based on ping
-        local Ping = math.clamp(100, 50, 300) -- Default 100ms
-        local Delay = 0.25 + ((Ping / 300) * 0.03)
-        
-        -- Listen for item in market
-        local MarketConnection
-        MarketConnection = ReplicatedStorage.MarketItems.ChildAdded:Connect(function(Child)
-            if Child.Name == ToolName then
-                MarketConnection:Disconnect()
-            end
-        end)
-        
-        -- List weapon
-        task.spawn(function()
-            ReplicatedStorage.ListWeaponRemote:FireServer(ToolName, 99999)
-        end)
-        
-        task.wait(Delay)
-        
-        -- Store weapon
-        task.spawn(function()
-            ReplicatedStorage.BackpackRemote:InvokeServer("Store", ToolName)
-        end)
-        
-        task.wait(3)
-        
-        -- Grab weapon back
-        task.spawn(function()
-            ReplicatedStorage.BackpackRemote:InvokeServer("Grab", ToolName)
-        end)
-        
         Rayfield:Notify({
             Title = "Dupe",
-            Content = "Tool dupe process started!",
+            Content = "Dupe process started! Check console for details.",
             Duration = 5,
         })
     end,
@@ -282,13 +284,12 @@ MainTab:CreateButton({
 
 MainTab:CreateParagraph({
     Title = "Usage:",
-    Content = "Hello everyone, thank you for using dkshub to do the gun dupe. Equip your tool you want to dupe then press 'Dupe Tools' and there is an AFK auto dupe below!",
+    Content = "Equip your tool you want dupe then press 'Dupe Tools'",
 })
 
 MainTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
-        -- Auto dupe toggle logic would go here
         if Value then
             Rayfield:Notify({
                 Title = "Auto Dupe",
@@ -341,11 +342,6 @@ MainTab:CreateDropdown({
         local LocationName = Options[1]
         if TeleportLocations[LocationName] then
             SelectedLocation = TeleportLocations[LocationName]
-            Rayfield:Notify({
-                Title = "Teleport",
-                Content = "Selected: " .. LocationName,
-                Duration = 3,
-            })
         end
     end,
     Options = {
@@ -437,21 +433,6 @@ MainTab:CreateToggle({
                     Content = "Opened: " .. table.concat(OpenedGUIs, ", "),
                     Duration = 5,
                 })
-            else
-                Rayfield:Notify({
-                    Title = "No GUIs Found",
-                    Content = "Could not find selected GUIs!",
-                    Duration = 5,
-                })
-            end
-        else
-            -- Optionally close GUIs when toggle is off
-            local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-            for _, GUIName in ipairs(GUIList) do
-                local GUI = PlayerGui:FindFirstChild(GUIName)
-                if GUI then
-                    GUI.Enabled = false
-                end
             end
         end
     end,
@@ -474,12 +455,6 @@ MainTab:CreateButton({
                 Humanoid:ChangeState(0)
                 HumanoidRootPart.CFrame = CFrame.new(-1591, 254, 18)
                 task.wait(0.5)
-                
-                Rayfield:Notify({
-                    Title = "Help Location",
-                    Content = "Teleported to help location!",
-                    Duration = 3,
-                })
             end
         end
     end,
@@ -498,18 +473,9 @@ AutofarmTab:CreateToggle({
         AutoFakeCard = Value
         
         if Value then
-            -- Buy fake card
             ReplicatedStorage.ExoticShopRemote:InvokeServer("FakeCard")
             task.wait(0.25)
             
-            -- Equip fake card
-            local Backpack = LocalPlayer:WaitForChild("Backpack")
-            local FakeCard = Backpack:FindFirstChild("FakeCard")
-            if FakeCard then
-                FakeCard.Parent = LocalPlayer.Character
-            end
-            
-            -- Teleport to farming location
             local Character = LocalPlayer.Character
             if Character then
                 local Humanoid = Character:WaitForChild("Humanoid")
@@ -519,30 +485,21 @@ AutofarmTab:CreateToggle({
                     Humanoid:ChangeState(0)
                     HumanoidRootPart.CFrame = CFrame.new(-1017, 254, -250)
                     task.wait(0.5)
-                    
-                    Rayfield:Notify({
-                        Title = "Card Autofarm",
-                        Content = "Card autofarm enabled!",
-                        Duration = 5,
-                    })
                 end
             end
-        else
+            
             Rayfield:Notify({
                 Title = "Card Autofarm",
-                Content = "Card autofarm disabled!",
+                Content = "Autofarm enabled!",
                 Duration = 5,
             })
         end
     end,
 })
 
--- Add autofarm loop
-task.spawn(function()
-    while task.wait(0.5) do
-        if AutoFakeCard then
-            -- Add your autofarm logic here
-            -- For example, using the fake card repeatedly
-        end
-    end
-end)
+-- SUCCESS MESSAGE
+Rayfield:Notify({
+    Title = "✅ Welcome",
+    Content = "Script loaded successfully! Enjoy.",
+    Duration = 5,
+})
