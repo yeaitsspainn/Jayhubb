@@ -1,16 +1,3 @@
--- Playground Basketball Script with Rayfield UI
--- Game ID: 18474291382
-
--- Game ID Verification
-local TARGET_GAME_ID = 18474291382
-local ACTUAL_GAME_ID = game.PlaceId
-
-if ACTUAL_GAME_ID ~= TARGET_GAME_ID then
-    -- Kick player if wrong game
-    game:GetService("Players").LocalPlayer:Kick("❌ Game ID not found. This script only works for Playground Basketball.")
-    return
-end
-
 -- Load Rayfield UI
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
