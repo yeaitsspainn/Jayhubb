@@ -1,1398 +1,3600 @@
---[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
-local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/iiivyne/robloxlua/refs/heads/main/lib.lua"))()
-local int = lib:CreateInterface("99 Nights in the Forest","script made by pain","https://discord.gg/H4p49CJPkU","bottom left","royal")
-local main = int:CreateTab("Main","main functions/script utilities","default",true)
-local autofarmss = int:CreateTab("Auto","auto farm utilities (OP)","op")
-local itemtp = int:CreateTab("Item TP/ESP","bring items to you","item")
-local gametp = int:CreateTab("Game TP","goto in-game locations","info")
-local charactertp = int:CreateTab("Mob TP","bring mobs to you","npc")
-local plr = int:CreateTab("Player","modify your localplayer","player")
-local vis = int:CreateTab("Visuals","modify autoyour visuals","visuals")
-local misc = int:CreateTab("Misc","miscellaneous","misc")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+local MemoryStoreService = game:GetService("MemoryStoreService")
+local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
 
+if game.PlaceVersion ~= expectedVersion then
+	local ui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+	ui.Name = "FoundationOverlay"
+	ui.ResetOnSpawn = false
+	ui.IgnoreGuiInset = true
+	ui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- === Main Configurations === 
+	local text = Instance.new("TextLabel", ui)
+	text.Size = UDim2.new(1, 0, 1, 0)
+	text.BackgroundColor3 = Color3.new(0, 0, 0)
+	text.BackgroundTransparency = 0.2
+	text.Font = Enum.Font.GothamBold
+	text.TextSize = 36
+	text.TextColor3 = Color3.new(1, 1, 1)
+	text.TextStrokeTransparency = 0.6
+	text.Text = "Game Updated, Wait For Script To Be Unlocked"
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
--- Safe zone setup: 9 baseplates in a grid
-local safezoneBaseplates = {}
-local baseplateSize = Vector3.new(2048, 1, 2048)
-local baseY = 100
-local centerPos = Vector3.new(0, baseY, 0) -- original center
-
-for dx = -1, 1 do
-    for dz = -1, 1 do
-        local pos = centerPos + Vector3.new(dx * baseplateSize.X, 0, dz * baseplateSize.Z)
-        local baseplate = Instance.new("Part")
-        baseplate.Name = "SafeZoneBaseplate"
-        baseplate.Size = baseplateSize
-        baseplate.Position = pos
-        baseplate.Anchored = true
-        baseplate.CanCollide = true
-        baseplate.Transparency = 1
-        baseplate.Color = Color3.fromRGB(255, 255, 255)
-        baseplate.Parent = workspace
-        table.insert(safezoneBaseplates, baseplate)
-    end
+	warn("[Bypass Hub] Game version mismatch: ", game.PlaceVersion)
+	task.wait(3)
+	ui:Destroy()
+	return
 end
 
--- Checkbox to toggle visibility/collision for all baseplates
-main:CreateCheckbox("Show Safe Zone", function(enabled)
-    for _, baseplate in ipairs(safezoneBaseplates) do
-        baseplate.Transparency = enabled and 0.8 or 1
-        baseplate.CanCollide = enabled
-    end
+local bypassUI = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+bypassUI.Name = "FoundationOverlay"
+bypassUI.IgnoreGuiInset = true
+bypassUI.ResetOnSpawn = false
+bypassUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local loadingLabel = Instance.new("TextLabel", bypassUI)
+loadingLabel.Size = UDim2.new(1, 0, 1, 0)
+loadingLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+loadingLabel.BackgroundTransparency = 0.4
+loadingLabel.Font = Enum.Font.GothamBold
+loadingLabel.TextSize = 36
+loadingLabel.TextColor3 = Color3.new(1, 1, 1)
+loadingLabel.TextStrokeTransparency = 0.6
+loadingLabel.Text = "â³ Script Loading, Please wait..."
+
+task.spawn(function()
+	local dots = { ".", "..", "...", "..", "." }
+	local i = 1
+	while not _G.__hyphonBypassComplete do
+		loadingLabel.Text = "â³ Script Loading, Please wait" .. dots[i]
+		i = (i % #dots) + 1
+		task.wait(0.4)
+	end
 end)
 
--- Utility to convert "x, y, z" string to CFrame
-local function stringToCFrame(str)
-    local x, y, z = str:match("([^,]+),%s*([^,]+),%s*([^,]+)")
-    return CFrame.new(tonumber(x), tonumber(y), tonumber(z))
+local function killFakeHandshake()
+	local fake = MemoryStoreService:FindFirstChild("Hyphon_Check")
+	if fake and fake:IsA("RemoteEvent") then
+		pcall(function() fake:Destroy() end)
+	end
+end
+killFakeHandshake()
+
+local function cloakUIs()
+	for _, v in ipairs(CoreGui:GetDescendants()) do
+		if v:IsA("ScreenGui") and v.Name:lower():find("hyphon") then
+			pcall(function()
+				v.Name = "RobloxCoreUI"
+				v.Enabled = false
+				for _, con in ipairs(getconnections(v.Changed)) do pcall(con.Disconnect, con) end
+				for _, con in ipairs(getconnections(v.AncestryChanged)) do pcall(con.Disconnect, con) end
+				for _, con in ipairs(getconnections(v:GetPropertyChangedSignal("Parent"))) do pcall(con.Disconnect, con) end
+				for _, con in ipairs(getconnections(v:GetPropertyChangedSignal("Enabled"))) do pcall(con.Disconnect, con) end
+				local clone = Instance.new("Folder", ReplicatedStorage)
+				clone.Name = "HyphonCheck"
+				v.Parent = clone
+			end)
+		end
+	end
+end
+cloakUIs()
+
+local capturedRemote, capturedKey
+local function interceptInvoke(remote, ...)
+	local args = table.pack(...)
+	for i = 1, args.n do
+		if typeof(args[i]) == "string" and args[i]:find("ProtectedByHyphon") then
+			capturedRemote = remote
+			capturedKey = args[i]
+			return nil 
+		end
+	end
 end
 
--- Teleport function with optional tween duration
-local function teleportToTarget(cf, duration)
-    local char = game.Players.LocalPlayer.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+for _, folder in ipairs(ReplicatedStorage:GetChildren()) do
+	if folder:IsA("Folder") and folder.Name:match("^%d+$") then
+		for _, obj in ipairs(folder:GetChildren()) do
+			if obj:IsA("RemoteFunction") and obj.Name:match("^%d+$") then
+				obj.OnClientInvoke = function(...)
+					return interceptInvoke(obj, ...)
+				end
+			end
+		end
+	end
+end
 
-    if duration and duration > 0 then
-        local ts = game:GetService("TweenService")
-        local info = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-        local goal = { CFrame = cf }
-        local tween = ts:Create(hrp, info, goal)
-        tween:Play()
+task.spawn(function()
+	repeat task.wait(0.1) until capturedRemote and capturedKey
+	task.wait(0.4)
+
+	local spoofed = tostring(LocalPlayer.UserId) .. tostring(math.random(10000, 99999))
+	local args = { spoofed, capturedKey }
+
+	local success = pcall(function()
+		capturedRemote:InvokeServer(args)
+	end)
+
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "Bypass Hub",
+			Text = success and "Hyphon Emulated" or "Emulation Failed",
+			Duration = 5
+		})
+	end)
+
+	_G.__hyphonBypassComplete = true
+	pcall(function() bypassUI:Destroy() end)
+
+	local Time = tick()
+
+local Old
+Old = hookfunction(getrenv().tick, newcclosure(function(...)
+    local Response = Old(...)
+
+    if not checkcaller() and tostring(getcallingscript()):find("?") then
+        Response = Old
+        return coroutine.yield()
+    end
+    return Response
+end))
+
+task.wait(15.55)
+
+local Old
+Old = hookfunction(gcinfo, function(...)
+    local Response = Old(...)
+    
+    if tostring(getcallingscript()):find("?") then
+        return Response + math.random(0, 1e4)
+    end
+    return Response 
+end)
+
+
+_G.__hyphonBypassComplete = true
+pcall(function() bypassUI:Destroy() end)
+
+local success, err = pcall(function()
+	local repo = "https://raw.githubusercontent.com/SAINTLTM53/ui/main/"
+	local Library = loadstring(game:HttpGet(repo .. "Obsidian.lua"))()
+
+	local VirtualInputManager = game:GetService("VirtualInputManager")
+	local TextService = game:GetService("TextService")
+	local CoreGui = game:GetService("CoreGui")
+	local Players = game:GetService("Players")
+	local Workspace = game:GetService("Workspace")
+	local LocalPlayer = Players.LocalPlayer
+	local Backpack = LocalPlayer:WaitForChild("Backpack")
+	local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local Humanoid = Character:WaitForChild("Humanoid")
+	local humanoid = Character:WaitForChild("Humanoid")
+	local PlayerName = LocalPlayer.Name
+	local RunService = game:GetService("RunService")
+	local Camera = workspace.CurrentCamera
+	local camera = workspace.CurrentCamera
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local Username = LocalPlayer.Name
+	local CoreGui = game:GetService("StarterGui")
+	local TeleportService = game:GetService("TeleportService")
+	local WorldToViewportPoint = Camera.WorldToViewportPoint
+	local HRP = Character:WaitForChild("HumanoidRootPart")
+	local hrp = Character:WaitForChild("HumanoidRootPart")
+	local UserInputService = game:GetService("UserInputService")
+	local localPlayer = game.Players.LocalPlayer
+	local TweenService = game:GetService("TweenService")
+	local player = Players.LocalPlayer
+	local Player = Players.LocalPlayer
+    local player = game:GetService("Players").LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    local miscGui = playerGui:WaitForChild("Misc")
+    local HttpService = game:GetService("HttpService")
+
+local antiAFKConnection
+
+local function sendAntiAFKInput()
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    if isMobile then
+        -- Mobile: simulate tap in center of screen
+        local pos = Vector2.new(300, 300)
+        VirtualInputManager:SendTouchEvent(Enum.UserInputType.Touch, 0, pos, true, game, 1)
+        VirtualInputManager:SendTouchEvent(Enum.UserInputType.Touch, 0, pos, false, game, 1)
     else
-        hrp.CFrame = cf
+        -- PC: simulate space key press
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
     end
 end
 
+local function startAntiAFK()
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+    end
 
-local storyCoords = {
-    { "[campsite] camp site", "0, 8, -0"},
-    { "[safezone] safe zone", "0, 110, -0" }
-}
-
-local storyDropdown = gametp:CreateDropDown("Teleports")
-
--- Create dropdown for story teleports
-for _, entry in ipairs(storyCoords) do
-    local name, coord = entry[1], entry[2]
-    storyDropdown:AddButton(name, function()
-        teleportToTarget(stringToCFrame(coord), 0.1)
+    antiAFKConnection = RunService.RenderStepped:Connect(function()
+        task.wait(600) -- 10 minutes
+        pcall(sendAntiAFKInput)
     end)
 end
 
+-- Initial run
+startAntiAFK()
 
-itemtp:CreateCheckbox("Item ESP", function(state)
-    local itemFolder = workspace:FindFirstChild("Items")
-    if not itemFolder then
-        warn("workspace.Items folder not found")
-        return
-    end
+-- Restart on respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(2)
+    startAntiAFK()
+end)
 
-    local itemNames = {
-        ["Revolver"] = true, ["Oil Barrel"] = true, ["Chainsaw"] = true, ["Giant Sack"] = true, ["Bunny Foot"] = true,["MedKit"] = true, ["Alien Chest"] = true, ["Berry"] = true,
-        ["Bolt"] = true, ["Broken Fan"] = true, ["Carrot"] = true, ["Coal"] = true,
-        ["Coin Stack"] = true, ["Hologram Emitter"] = true, ["Item Chest"] = true,
-        ["Laser Fence Blueprint"] = true, ["Log"] = true, ["Old Flashlight"] = true,
-        ["Old Radio"] = true, ["Sheet Metal"] = true, ["Bandage"] = true, ["Rifle"] = true
+	local Options = Library.Options
+	local Toggles = Library.Toggles
+	local Window = Library:CreateWindow({
+		Title = "Bypass Hub | SB",
+		Footer = "version: v1.1 | Made By: Cobra and aaa | Status: FREE ",
+		Icon = 95816097006870,
+		NotifySide = "Right",
+		ShowCustomCursor = true,
+	})
+
+    local Tabs = {
+        Main = Window:AddTab("Main", "layout-dashboard"),
+		Tps = Window:AddTab("Teleports", "user"),
+        farms = Window:AddTab("AutoFarms", "sun"),
+		Visuals = Window:AddTab("Visuals", "eye"),
+        combat = Window:AddTab("Combat", "target"),
+        Settings = Window:AddTab("Settings", "settings"),
     }
 
-    local connections = {}
+local RightGroupBox = Tabs.Settings:AddRightGroupbox("Server")
 
-    local function createESP(model)
-        if not model:IsA("Model") or not itemNames[model.Name] then return end
-        if not model.PrimaryPart or model:FindFirstChild("ESP") then return end
+        local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+         local function showBlackScreen()
+            local screenGui = Instance.new("ScreenGui")
+            screenGui.IgnoreGuiInset = true
+            screenGui.ResetOnSpawn = false
+            screenGui.Name = "BlackScreen"
+            screenGui.Parent = PlayerGui
 
-        local billboard = Instance.new("BillboardGui")
-        billboard.Name = "ESP"
-        billboard.Size = UDim2.new(0, 100, 0, 30)
-        billboard.Adornee = model.PrimaryPart
-        billboard.AlwaysOnTop = true
-        billboard.StudsOffset = Vector3.new(0, 3, 0)
-	
-	local customFont = Font.new("rbxassetid://16658246179", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-	local label = Instance.new("TextLabel")
-	
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.TextSize = 17
-	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.5
-	label.TextScaled = false
-	label.FontFace = customFont
-	label.Text = model.Name
-	
-        label.Parent = billboard
+            local frame = Instance.new("Frame")
+            frame.BackgroundColor3 = Color3.new(0, 0, 0)
+            frame.Size = UDim2.new(1, 0, 1, 0)
+            frame.BackgroundTransparency = 1
+            frame.Parent = screenGui
 
-        billboard.Parent = model
-    end
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.Text = "best free ud script"
+            textLabel.TextColor3 = Color3.new(1, 1, 1)
+            textLabel.Font = Enum.Font.GothamBold
+            textLabel.TextScaled = true
+            textLabel.Parent = frame
 
-    local function removeAllESP()
-        for _, model in itemFolder:GetChildren() do
-            local esp = model:FindFirstChild("ESP")
-            if esp then esp:Destroy() end
-        end
-    end
+            TweenService:Create(frame, TweenInfo.new(0.4), {BackgroundTransparency = 0}):Play()
 
-    if state then
-        -- Create ESPs for all current items
-        for _, model in itemFolder:GetChildren() do
-            createESP(model)
-        end
-
-        -- Add ESPs for any new items added
-        local connection = itemFolder.ChildAdded:Connect(function(model)
-            if model:IsA("Model") and itemNames[model.Name] then
-                model:GetPropertyChangedSignal("PrimaryPart"):Wait()
-                createESP(model)
-            end
-        end)
-
-        table.insert(connections, connection)
-    else
-        -- Disable ESPs
-        removeAllESP()
-
-        -- Disconnect any listeners
-        for _, conn in connections do
-            if conn.Disconnect then conn:Disconnect() end
-        end
-        table.clear(connections)
-    end
-end)
-
--- tp to item
-
-
-local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
-
-local itemFolder = workspace:WaitForChild("Items")
-
-local itemNames = {
-    "Revolver", "Medkit", "Alien Chest", "Berry", "Bolt", "Broken Fan",
-    "Carrot", "Coal", "Coin Stack", "Hologram Emitter", "Item Chest",
-    "Laser Fence Blueprint", "Log", "Old Flashlight", "Old Radio",
-    "Sheet Metal", "Bandage", "Rifle"
-}
-
-local function getModelPart(model)
-    if model.PrimaryPart then
-        return model.PrimaryPart
-    end
-    for _, part in pairs(model:GetChildren()) do
-        if part:IsA("BasePart") then
-            return part
-        end
-    end
-    return nil
-end
-
-local dropdown = itemtp:CreateDropDown("Teleport to Item")
-
-for _, itemName in ipairs(itemNames) do
-    dropdown:AddButton("TP to " .. itemName, function()
-        -- Find all models with this name inside Items folder
-        local candidates = {}
-        for _, model in pairs(itemFolder:GetChildren()) do
-            if model:IsA("Model") and model.Name == itemName then
-                local part = getModelPart(model)
-                if part then
-                    table.insert(candidates, part)
-                end
-            end
-        end
-
-        if #candidates == 0 then
-            warn("No '" .. itemName .. "' found to teleport to.")
-            return
-        end
-
-        -- Pick a random part and teleport
-        local targetPart = candidates[math.random(1, #candidates)]
-        local character = localPlayer.Character
-        if character then
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = targetPart.CFrame + Vector3.new(0, 5, 0)
-            end
-        end
-    end)
-end
-
-
-
--- tp to item
-
-
-
-
--- tp item to you  
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
-
-local itemsFolder = workspace:WaitForChild("Items")
-local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
-
-local possibleItems = {
-    "Alien Chest",
-    "Alpha Wolf Pelt",
-    "Anvil Front",
-    "Anvil Back",
-    "Apple",
-    "Bandage",
-    "Bear Corpse",
-    "Bear Pelt",
-    "Berry",
-    "Biofuel",
-    "Bolt",
-    "Broken Fan",
-    "Bunny Foot",
-    "Carrot",
-    "Coal",
-    "Coin Stack",
-    "Cooked Morsel",
-    "Cooked Steak",
-    "Chainsaw",
-    "Cultist",
-    "Cultist Gem",
-    "Flower",
-    "Fuel Canister",
-    "Hologram Emitter",
-    "Item Chest",
-    "Laser Fence Blueprint",
-    "Leather Body",
-    "Iron Body",
-    "Thorn Body",
-    "Log",
-    "MedKit",
-    "Morsel",
-    "Old Flashlight",
-    "Old Radio",
-    "Good Sack",
-    "Good Axe",
-    "Raygun",
-    "Giant Sack",
-    "Strong Axe",
-    "Oil Barrel",
-    "Old Car Engine",
-    "Rifle",
-    "Rifle Ammo",
-    "Revolver",
-    "Revolver Ammo",
-    "Sapling",
-    "Sheet Metal",
-    "Steak",
-    "Wolf Pelt",
-    "Gem of the Forest Fragment",
-    "Tyre",
-    "Washing Machine",
-    "Broken Microwave"
-}
-
-local bringitemtoyou = itemtp:CreateDropDown("Teleport Item (Bulk):")
-local sources = {
-    itemsFolder,
-    game:GetService("ReplicatedStorage"):WaitForChild("TempStorage")
-}
-
-local function teleportItem(itemName)
-    local stackOffsetY = 2 -- Height between stacked items
-    local count = 0
-
-    for _, source in ipairs(sources) do
-        for _, item in ipairs(source:GetChildren()) do
-            if item.Name == itemName then
-                local targetPart = nil
-
-                if itemName == "Berry" then
-                    targetPart = item:FindFirstChild("Handle")
-                    if not targetPart then
-                        for _, child in ipairs(item:GetDescendants()) do
-                            if child:IsA("MeshPart") or child:IsA("Part") or child:IsA("UnionOperation") then
-                                targetPart = child
-                                break
-                            end
-                        end
-                    end
-                else
-                    for _, child in ipairs(item:GetDescendants()) do
-                        if child:IsA("MeshPart") or child:IsA("Part") then
-                            targetPart = child
-                            break
-                        end
-                    end
-                end
-
-                if targetPart then
-                    remoteEvents.RequestStartDraggingItem:FireServer(item)
-
-                    -- Stack vertically at player's position
-                    local offset = Vector3.new(0, count * stackOffsetY, 0)
-                    targetPart.CFrame = rootPart.CFrame + offset
-
-                    remoteEvents.StopDraggingItem:FireServer(item)
-                    print("Moved", itemName, ":", item:GetFullName())
-
-                    count = count + 1
-                else
-                    warn(itemName .. " found, but no MeshPart or Part inside:", item:GetFullName())
-                end
-            end
-        end
-    end
-end
-
-for _, itemName in ipairs(possibleItems) do
-    bringitemtoyou:AddButton(itemName, function()
-        teleportItem(itemName)
-    end)
-end
-
--- tp item to you 
-
--- tp char to you
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
-
-local characterFolder = workspace:WaitForChild("Characters")
-
-local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents") -- if needed
-
--- List of character names to teleport (your tags)
-local possibleCharacters = {
-    "Alpha Wolf",
-    "Bear",
-    "Lost Child",
-    "Lost Child2",
-    "Lost Child3",
-    "Lost Child4",
-    "Wolf",
-    "Bunny",
-    "Cultist",
-    "Alien"
-}
-
-local bringCharacterToYou = charactertp:CreateDropDown("Teleport Mob:")
-
--- Helper to find main part (similar to your getModelPart)
-local function getMainPart(model)
-    if model.PrimaryPart then
-        return model.PrimaryPart
-    end
-    for _, part in ipairs(model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            return part
-        end
-    end
-    return nil
-end
-
-local function teleportCharacter(characterName)
-    local stackOffsetY = 3
-    local count = 0
-
-    for _, model in ipairs(characterFolder:GetChildren()) do
-        if model.Name == characterName then
-            local mainPart = getMainPart(model)
-            if mainPart and rootPart then
-                -- Move the whole model so mainPart aligns above player, stacked
-                local targetCFrame = rootPart.CFrame + Vector3.new(0, count * stackOffsetY, 0)
-                -- Use SetPrimaryPartCFrame if PrimaryPart exists, else move mainPart directly
-                if model.PrimaryPart then
-                    model:SetPrimaryPartCFrame(targetCFrame)
-                else
-                    mainPart.CFrame = targetCFrame
-                end
-                count = count + 1
-            else
-                warn("No main part found for character:", model:GetFullName())
-            end
-        end
-    end
-end
-
-for _, characterName in ipairs(possibleCharacters) do
-    bringCharacterToYou:AddButton(characterName, function()
-        teleportCharacter(characterName)
-    end)
-end
-
-
--- tp char to you 
-
-
--- === Player Sliders ===
-
--- JumpPower Slider
-plr:CreateSlider("jumppower", 700, 50, function(value)
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") then
-        char.Humanoid.JumpPower = value
-    end
-end)
-
--- WalkSpeed Slider with Persistent Behavior
-plr:CreateSlider("walkspeed", 700, 16, function(value)
-    _G.HackedWalkSpeed = value
-
-    local function applyWalkSpeed(humanoid)
-        if humanoid then
-            humanoid.WalkSpeed = _G.HackedWalkSpeed
-            humanoid.Changed:Connect(function(property)
-                if property == "WalkSpeed" and humanoid.WalkSpeed ~= _G.HackedWalkSpeed then
-                    humanoid.WalkSpeed = _G.HackedWalkSpeed
-                end
+            task.delay(6, function()
+                TweenService:Create(frame, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+                task.wait(1)
+                screenGui:Destroy()
             end)
         end
-    end
 
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        applyWalkSpeed(LocalPlayer.Character.Humanoid)
-    end
+local teleportMethods = {
+	["Damage Teleport"] = "damage",
+	["Dirt Bike"] = "dirtbike"
+}
 
-    LocalPlayer.CharacterAdded:Connect(function(char)
-        char:WaitForChild("Humanoid")
-        applyWalkSpeed(char:FindFirstChild("Humanoid"))
-    end)
-end)
+local teleportMethodNames = (function()
+	local t = {}
+	for name in pairs(teleportMethods) do
+		table.insert(t, name)
+	end
+	return t
+end)()
 
-plr:CreateCheckbox("walkspeed toggle (50)",function(toggle)
-    if toggle == true then 
-    _G.HackedWalkSpeed = 50
-        else
-    _G.HackedWalkSpeed = 16
-    end
+local selectedTeleportMethod = "Damage Teleport"
+_G.TeleportMethod = teleportMethods[selectedTeleportMethod]
+local PhysicsService = game:GetService("PhysicsService")
 
-    local function applyWalkSpeed(humanoid)
-        if humanoid then
-            humanoid.WalkSpeed = _G.HackedWalkSpeed
-            humanoid.Changed:Connect(function(property)
-                if property == "WalkSpeed" and humanoid.WalkSpeed ~= _G.HackedWalkSpeed then
-                    humanoid.WalkSpeed = _G.HackedWalkSpeed
-                end
-            end)
-        end
-    end
-
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        applyWalkSpeed(LocalPlayer.Character.Humanoid)
-    end
-
-    LocalPlayer.CharacterAdded:Connect(function(char)
-        char:WaitForChild("Humanoid")
-        applyWalkSpeed(char:FindFirstChild("Humanoid"))
-    end)
-end)
-
---// SERVICES
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
-
-local LocalPlayer = Players.LocalPlayer
-
---// CONFIG
-local espTransparency = 0.4
-local teamCheck = true
-
---// CUSTOM FONT
-local customFont = Font.new("rbxassetid://16658246179", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-
---// STATE
-local BillboardESPs = {}
-local ChamsESPs = {}
-local ESPConnections = {}
-
-local ESPEnabled = false
-local ChamsEnabled = false
-
---// HELPERS
-local function round(num, decimals)
-	return tonumber(string.format("%." .. (decimals or 0) .. "f", num))
+local function suppressRagdoll()
+	local blocker
+	blocker = Humanoid.StateChanged:Connect(function(old, new)
+		if new == Enum.HumanoidStateType.Ragdoll or new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Physics then
+			Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end)
+	return blocker
 end
 
-local function getRoot(char)
-	return char and char:FindFirstChild("HumanoidRootPart")
+RightGroupBox:AddDropdown("TeleportMethodDropdown", {
+	Values = teleportMethodNames,
+	Default = 1,
+	Multi = false,
+	Text = "Teleport Method",
+	Callback = function(value)
+		selectedTeleportMethod = value
+		_G.TeleportMethod = teleportMethods[value]
+		Library:Notify("Teleport method set to: " .. value, 3)
+	end,
+})
+
+local function homelessFastTp(finalTargetPosition)
+	local HomelessStorage = ReplicatedStorage:WaitForChild("Workspace"):WaitForChild("Homeless")
+	local HomelessLive = Workspace:WaitForChild("HomelessPeople")
+
+	local TARGET_HEALTH_PERCENT = 0.17
+	local TELEPORT_TOLERANCE = 7
+
+	local function getDistance(pos1, pos2)
+		return (pos1 - pos2).Magnitude
+	end
+
+	local function desyncTeleport(pos)
+		task.wait(0.05)
+		Character:PivotTo(CFrame.new(pos))
+		task.wait(0.05)
+		Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+		task.wait(0.05)
+		Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+	end
+
+	local function spawnAndTriggerHomeless(homelessModel)
+		local hiddenPos = homelessModel.HumanoidRootPart.Position
+		desyncTeleport(hiddenPos)
+
+		local spawnedHomeless = nil
+		local timeout = os.clock() + 10
+		repeat
+			spawnedHomeless = HomelessLive:FindFirstChild(homelessModel.Name)
+			if not spawnedHomeless then
+				if getDistance(HRP.Position, hiddenPos) > TELEPORT_TOLERANCE then
+					desyncTeleport(hiddenPos)
+				end
+				task.wait(0.01)
+			end
+		until spawnedHomeless or os.clock() > timeout
+
+		if not spawnedHomeless then return nil end
+
+		local prompt = spawnedHomeless:FindFirstChild("UpperTorso") and spawnedHomeless.UpperTorso:FindFirstChild("ProximityPrompt")
+		if not prompt then return nil end
+
+		local initialHealth = Humanoid.Health
+		local damageStarted = false
+		local promptStartTime = tick()
+
+		while tick() - promptStartTime < 2 do
+			Character:PivotTo(CFrame.new(prompt.Parent.Position + Vector3.new(0, 1, 0)))
+			fireproximityprompt(prompt)
+			if Humanoid.Health < initialHealth then
+				damageStarted = true
+				break
+			end
+			task.wait(0.01)
+		end
+
+		if not damageStarted then
+			return false
+		end
+
+		local waitStart = tick()
+		while (Humanoid.Health / Humanoid.MaxHealth) > TARGET_HEALTH_PERCENT do
+			if not spawnedHomeless or not spawnedHomeless:FindFirstChild("UpperTorso") then return end
+			Character:PivotTo(CFrame.new(prompt.Parent.Position + Vector3.new(0, 1, 0)))
+			fireproximityprompt(prompt)
+			task.wait(0.01)
+			if tick() - waitStart > 7 then return end
+		end
+
+		return true
+	end
+
+	local attempted = {}
+	local blacklist = {}
+	local stateBlocker = suppressRagdoll()
+	Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+
+	local function isBlacklisted(homeless)
+		for _, bad in ipairs(blacklist) do
+			if bad == homeless then return true end
+		end
+		return false
+	end
+
+	local function isSitting(homeless)
+	local hrp = homeless:FindFirstChild("HumanoidRootPart")
+	if not hrp then return false end
+
+	local _, y, _ = hrp.CFrame:ToEulerAnglesYXZ()
+	local degY = math.deg(y)
+
+	return math.abs(math.abs(degY) - 90) < 5
 end
 
---// BILLBOARD ESP
-local function createBillboardESP(plr)
-	if BillboardESPs[plr] or plr == LocalPlayer then return end
-	if not plr.Character or not plr.Character:FindFirstChild("Head") then return end
+local function getNextValidHomeless()
+	local closest, closestDist = nil, math.huge
+	for _, homeless in ipairs(HomelessStorage:GetChildren()) do
+		if homeless:IsA("Model")
+			and homeless:FindFirstChild("HumanoidRootPart")
+			and not isBlacklisted(homeless)
+			and isSitting(homeless) then
 
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "Billboard_ESP"
-	gui.Adornee = plr.Character.Head
-	gui.Parent = plr.Character.Head
-	gui.Size = UDim2.new(0, 100, 0, 40)
-	gui.AlwaysOnTop = true
-	gui.StudsOffset = Vector3.new(0, 2, 0)
+			local dist = getDistance(HRP.Position, homeless.HumanoidRootPart.Position)
+			if dist < closestDist then
+				closest = homeless
+				closestDist = dist
+			end
+		end
+	end
+	return closest
+end
 
-	local label = Instance.new("TextLabel", gui)
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.5
-	label.TextScaled = true
-	label.FontFace = customFont
+local success = false
+	local maxAttempts = 7
+	local attempts = 0
 
-	local conn
-	conn = RunService.RenderStepped:Connect(function()
-		if not plr.Character or not plr.Character:FindFirstChild("Humanoid") then
-			gui:Destroy()
-			if conn then conn:Disconnect() end
-			BillboardESPs[plr] = nil
-			ESPConnections[plr] = nil
+	repeat
+		local nextHomeless = getNextValidHomeless()
+		if not nextHomeless then
+			if stateBlocker then stateBlocker:Disconnect() end
 			return
 		end
 
-		local hp = math.floor(plr.Character.Humanoid.Health / plr.Character.Humanoid.MaxHealth * 100)
-		label.Text = plr.Name .. " | " .. hp .. "%"
-	end)
+		table.insert(attempted, nextHomeless)
+		attempts += 1
 
-	BillboardESPs[plr] = gui
-	ESPConnections[plr] = conn
+		local result = spawnAndTriggerHomeless(nextHomeless)
+		if result then
+			success = true
+		else
+			table.insert(blacklist, nextHomeless)
+		end
+	until success or attempts >= maxAttempts
+
+	if not success then
+		if stateBlocker then stateBlocker:Disconnect() end
+		return
+	end
+
+	task.wait(0.01)
+	Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+	if stateBlocker then stateBlocker:Disconnect() end
+	Character:PivotTo(CFrame.new(finalTargetPosition))
+
+	task.wait(0.1)
+	Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+	task.wait(0.1)
+	Character:PivotTo(CFrame.new(finalTargetPosition))
 end
 
---// CHAMS ESP (BoxHandleAdornment)
-local function createChamsESP(plr)
-	if ChamsESPs[plr] or plr == LocalPlayer then return end
-	if not plr.Character or not getRoot(plr.Character) then return end
+local function teleportUsingDirtBike(cframeTarget)
+	local Dealershipinteraction = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("Dealershipinteraction")
+	local originalCFrame = HRP.CFrame
 
-	local folder = Instance.new("Folder")
-	folder.Name = "Chams_ESP"
-	folder.Parent = CoreGui
-	ChamsESPs[plr] = folder
+	local function getGroundY(position)
+		local rayOrigin = position + Vector3.new(0, 100, 0)
+		local rayDirection = Vector3.new(0, -500, 0)
+		local params = RaycastParams.new()
+		params.FilterDescendantsInstances = {Workspace.Terrain}
+		params.FilterType = Enum.RaycastFilterType.Whitelist
+		local result = Workspace:Raycast(rayOrigin, rayDirection, params)
+		return result and result.Position.Y or position.Y
+	end
 
-	for _, part in pairs(plr.Character:GetChildren()) do
-		if part:IsA("BasePart") then
-			local box = Instance.new("BoxHandleAdornment")
-			box.Name = "Cham_" .. plr.Name
-			box.Adornee = part
-			box.AlwaysOnTop = true
-			box.ZIndex = 10
-			box.Size = part.Size
-			box.Transparency = espTransparency
-			box.Color = BrickColor.new(
-				teamCheck and (plr.TeamColor == LocalPlayer.TeamColor and "Bright green" or "Bright red") or tostring(plr.TeamColor)
-			)
-			box.Parent = folder
+	Dealershipinteraction:FireServer("Spawn", "DirtBike")
+	task.wait(3)
+
+	local carName = LocalPlayer.Name .. "'s Car"
+	local dirtBike
+	repeat
+		dirtBike = Workspace:FindFirstChild(carName)
+		task.wait(0.1)
+	until dirtBike
+
+	if not dirtBike.PrimaryPart then
+		local primary = dirtBike:FindFirstChildWhichIsA("BasePart")
+		if primary then
+			dirtBike.PrimaryPart = primary
+		else
+			return
 		end
 	end
-end
 
---// CLEANUP FUNCTIONS
-local function cleanupBillboardESP()
-	for _, gui in pairs(BillboardESPs) do
-		if gui then gui:Destroy() end
+	local seat = dirtBike:WaitForChild("DriveSeat", 5)
+	if not seat then return end
+
+	HRP.CFrame = CFrame.new(seat.Position + Vector3.new(0, 3, 0))
+	task.wait(0.2)
+
+	local prompt = seat:WaitForChild("Attachment"):FindFirstChild("ProximityPrompt")
+	if not prompt then return end
+
+	fireproximityprompt(prompt)
+	repeat task.wait(0.1) until Humanoid.Sit
+
+	task.wait(0.3)
+
+	local BIKE_Y_OFFSET = 6
+	local PLAYER_Y_OFFSET = 2
+
+	local function teleportWithCar(cframe)
+		local groundY = getGroundY(cframe.Position)
+		local newPos = Vector3.new(cframe.Position.X, groundY + BIKE_Y_OFFSET, cframe.Position.Z)
+		local bikeCFrame = CFrame.new(newPos, (cframe.LookVector + newPos))
+		local playerCFrame = bikeCFrame + Vector3.new(0, PLAYER_Y_OFFSET, 0)
+		dirtBike:SetPrimaryPartCFrame(bikeCFrame)
+		HRP.CFrame = playerCFrame
 	end
-	for _, conn in pairs(ESPConnections) do
-		if conn then conn:Disconnect() end
+
+	teleportWithCar(cframeTarget)
+end
+
+_G.teleportTo = function(cframeTarget)
+	if typeof(showBlackScreen) == "function" then
+		showBlackScreen("Teleporting...")
 	end
-	BillboardESPs = {}
-	ESPConnections = {}
+
+	local method = _G.TeleportMethod
+local targetCFrame = typeof(cframeTarget) == "Vector3" and CFrame.new(cframeTarget) or cframeTarget
+
+if method == "damage" then
+	homelessFastTp(targetCFrame.Position)
+elseif method == "dirtbike" then
+	teleportUsingDirtBike(targetCFrame.Position)
 end
 
-local function cleanupChamsESP()
-	for _, folder in pairs(ChamsESPs) do
-		if folder then folder:Destroy() end
-	end
-	ChamsESPs = {}
+
+	task.wait(2)
 end
 
---// INITIALIZATION HANDLER
-local function handlePlayerESP(plr)
-	if ESPEnabled then createBillboardESP(plr) end
-	if ChamsEnabled then createChamsESP(plr) end
+local RightGroupBox = Tabs.Main:AddRightGroupbox("Gun Mods (Risky)")
 
-	plr.CharacterAdded:Connect(function()
-		task.wait(1)
-		if ESPEnabled then createBillboardESP(plr) end
-		if ChamsEnabled then createChamsESP(plr) end
-	end)
+local function getCharacter()
+    return workspace:FindFirstChild("Characters") and workspace.Characters:FindFirstChild(LocalPlayer.Name)
 end
 
---// GUI TOGGLES (INTEGRATE INTO YOUR UI)
-vis:CreateCheckbox("ESP", function(state)
-	ESPEnabled = state
-	if not state then
-		cleanupBillboardESP()
-	else
-		for _, plr in pairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer then
-				createBillboardESP(plr)
-			end
-		end
-	end
-end)
+local function applyAmmo(tool)
+    if tool:FindFirstChild("Ammo") then tool.Ammo.Value = math.huge end
+    if tool:FindFirstChild("Mag") then tool.Mag.Value = math.huge end
 
-vis:CreateCheckbox("Chams", function(state)
-	ChamsEnabled = state
-	if not state then
-		cleanupChamsESP()
-	else
-		for _, plr in pairs(Players:GetPlayers()) do
-			if plr ~= LocalPlayer then
-				createChamsESP(plr)
-			end
-		end
-	end
-end)
-
---// INIT ON CURRENT PLAYERS
-for _, plr in pairs(Players:GetPlayers()) do
-	if plr ~= LocalPlayer then
-		handlePlayerESP(plr)
-	end
-end
-
-Players.PlayerAdded:Connect(function(plr)
-	handlePlayerESP(plr)
-end)
-
---// FOV CIRCLE
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-FOVCircle.Transparency = 1
-FOVCircle.Thickness = 1
-FOVCircle.Filled = false
-FOVCircle.ZIndex = 2
-
-local FOVRadius = 100
-
-RunService.RenderStepped:Connect(function()
-	if FOVCircle.Visible then
-		FOVCircle.Radius = FOVRadius
-		FOVCircle.Position = UserInputService:GetMouseLocation()
-	end
-end)
-
-vis:CreateCheckbox("FOV Circle", function(state)
-	FOVCircle.Visible = state
-end)
-
-
--- extra scripts
-
-local civDropdown2 = misc:CreateDropDown("Extra Scripts", function() end)
-
-civDropdown2:AddButton("infinite yield",function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
-end)
-
-civDropdown2:AddButton("emote gui",function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/dimension-sources/random-scripts-i-found/refs/heads/main/r6%20animations"))()
-end)
-
-civDropdown2:AddButton("anti afk",function()
-    
-    wait(0.5)local ba=Instance.new("ScreenGui")
-local ca=Instance.new("TextLabel")local da=Instance.new("Frame")
-local _b=Instance.new("TextLabel")local ab=Instance.new("TextLabel")ba.Parent=game.CoreGui
-ba.ZIndexBehavior=Enum.ZIndexBehavior.Sibling;ca.Parent=ba;ca.Active=true
-ca.BackgroundColor3=Color3.new(0.176471,0.176471,0.176471)ca.Draggable=true
-ca.Position=UDim2.new(0.698610067,0,0.098096624,0)ca.Size=UDim2.new(0,370,0,52)
-ca.Font=Enum.Font.SourceSansSemibold;ca.Text="anti afk"ca.TextColor3=Color3.new(0,1,1)
-ca.TextSize=22;da.Parent=ca
-da.BackgroundColor3=Color3.new(0.196078,0.196078,0.196078)da.Position=UDim2.new(0,0,1.0192306,0)
-da.Size=UDim2.new(0,370,0,107)_b.Parent=da
-_b.BackgroundColor3=Color3.new(0.176471,0.176471,0.176471)_b.Position=UDim2.new(0,0,0.800455689,0)
-_b.Size=UDim2.new(0,370,0,21)_b.Font=Enum.Font.Arial;_b.Text="anti afk"
-_b.TextColor3=Color3.new(0,1,1)_b.TextSize=20;ab.Parent=da
-ab.BackgroundColor3=Color3.new(0.176471,0.176471,0.176471)ab.Position=UDim2.new(0,0,0.158377,0)
-ab.Size=UDim2.new(0,370,0,44)ab.Font=Enum.Font.ArialBold;ab.Text="status: active"
-ab.TextColor3=Color3.new(0,1,1)ab.TextSize=20;local bb=game:service'VirtualUser'
-game:service'Players'.LocalPlayer.Idled:connect(function()
-bb:CaptureController()bb:ClickButton2(Vector2.new())
-ab.Text="roblox tried to kick you but failed to do so!"wait(2)ab.Text="status : active"end)
-
-    
-end)
-
-civDropdown2:AddButton("turtle spy",function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Turtle-Brand/Turtle-Spy/main/source.lua", true))()
-end)
-
--- extra scripts
-
-
--- loop distance
-
-
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-
-local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
-local player = Players.LocalPlayer
-
--- Original Kill Aura Variables
-local killAuraToggle = false
-local radius = 200
-
--- Infinite Range Kill Aura Variables
-local infRangeKillAuraToggle = false
--- Script generated by TurtleSpy, made by Intrer#0421
--- Supported tools and their damage IDs
-
-local toolsDamageIDs = {
-    ["Old Axe"] = "1_8982038982",
-    ["Good Axe"] = "112_8982038982",
-    ["Strong Axe"] = "116_8982038982",
-    ["Chainsaw"] = "647_8992824875",
-    ["Spear"] = "196_8999010016"
-    
-}
-
--- Try to find any supported tool in inventory with damageID
-local function getAnyToolWithDamageID()
-    for toolName, damageID in pairs(toolsDamageIDs) do
-        local tool = player.Inventory:FindFirstChild(toolName)
-        if tool then
-            return tool, damageID
-        end
-    end
-    return nil, nil
-end
-
--- Equip a given tool
-local function equipTool(tool)
-    if tool then
-        RemoteEvents.EquipItemHandle:FireServer("FireAllClients", tool)
-    end
-end
-
--- Unequip a given tool
-local function unequipTool(tool)
-    if tool then
-        RemoteEvents.UnequipItemHandle:FireServer("FireAllClients", tool)
-    end
-end
-
--- Original Kill Aura main loop (with radius)
-local function killAuraLoop()
-    while killAuraToggle do
-        local character = player.Character or player.CharacterAdded:Wait()
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local tool, damageID = getAnyToolWithDamageID()
-            if tool and damageID then
-                equipTool(tool)
-
-                for _, mob in ipairs(Workspace.Characters:GetChildren()) do
-                    if mob:IsA("Model") then
-                        local part = mob:FindFirstChildWhichIsA("BasePart")
-                        if part and (part.Position - hrp.Position).Magnitude <= radius then
-                            pcall(function()
-                                RemoteEvents.ToolDamageObject:InvokeServer(
-                                    mob,
-                                    tool,
-                                    damageID,
-                                    CFrame.new(part.Position)
-                                )
-                            end)
-                        end
-                    end
-                end
-
-                task.wait(0.1)
-            else
-                warn("No supported tool found in inventory")
-                task.wait(1)
-            end
-        else
-            task.wait(0.5)
+    -- Kill the remote once
+    local remoteEvent = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if remoteEvent then
+        local magRemote = remoteEvent:FindFirstChild("ChangeMagAndAmmo")
+        if magRemote then
+            pcall(function() magRemote:Destroy() end)
         end
     end
 end
 
--- Helper: Get all models recursively in a folder
-local function getAllModelsInFolder(folder)
-    local models = {}
-    for _, obj in ipairs(folder:GetDescendants()) do
-        if obj:IsA("Model") then
-            table.insert(models, obj)
-        end
+local function disableAnimations(tool)
+    for _, name in ipairs({
+        "ClickAnim", "EquippedAnim", "FireAnim", "HoldDownAnim",
+        "IdleAnim", "ReloadAnim", "TacticalReloadAnimation", "UnequippedAnim"
+    }) do
+        local anim = tool:FindFirstChild(name)
+        if anim then pcall(function() anim:Destroy() end) end
     end
-    return models
 end
 
--- Helper: Find any BasePart descendant of a model
-local function findAnyBasePart(model)
-    for _, descendant in ipairs(model:GetDescendants()) do
-        if descendant:IsA("BasePart") then
-            return descendant
-        end
-    end
-    return nil
-end
-
--- UI checkbox toggles
-main:CreateCheckbox("Kill Aura", function(state)
-    killAuraToggle = state
-    if state then
-        task.spawn(killAuraLoop)
-    else
-        local tool, _ = getAnyToolWithDamageID()
-        unequipTool(tool)
-    end
-end)
-
-main:CreateSlider("Kill Aura Radius", 500, 20, function(value)
-    radius = math.clamp(value, 20, 500)
-end)
-
--- loop distance
-
-
-
--- extra item automation
-
-itemtp:CreateComment("remaining specific item teleports:")
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
-
-local itemsFolder = workspace:WaitForChild("Items")
-local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
-
-local bracket = {
-    weapons = {
-        -- Removed Good Axe and Strong Axe
-        "Laser Sword", "Raygun", "Kunai", "Katana", "Spear" -- moved to misc tools, but you wanted it here too?
-    },
-    minifoods = {
-        "Apple", "Berry", "Carrot"
-    },
-    meat = {
-        "Steak", "Cooked Steak", "Cooked Morsel" , "Morsel"
-    },
-    armor = {
-        "Leather Body", "Iron Body", "Thorn Body"
-    },
-    ["guns/ammo"] = {
-        "Rifle", "Revolver", "Raygun", "Tactical Shotgun", "Revolver Ammo", "Rifle Ammo"
-    },
-    materials = {
-        "Log", "Coal", "Fuel Canister", "UFO Junk", "UFO Component", "Bandage", "MedKit",
-        "Old Car Engine", "Broken Fan", "Old Microwave", "Old Radio", "Sheet Metal"
-    },
-    pelts = {
-        "Alpha Wolf Pelt", "Bear Pelt", "Wolf Pelt", "Bunny Foot"
-    },
-    misc_tools = {  -- changed to misc_tools for consistency with no spaces
-        "Good Sack", "Old Flashlight", "Old Radio", "Giant Sack", "Strong Flashlight", "Chainsaw"
-    }
-}
-
--- Finds the first suitable BasePart to teleport
-local function findTeleportablePart(item)
-    for _, descendant in ipairs(item:GetDescendants()) do
-        if descendant:IsA("BasePart") then
-            return descendant
-        end
-        if descendant:IsA("Model") then
-            for _, sub in ipairs(descendant:GetDescendants()) do
-                if sub:IsA("BasePart") then
-                    return sub
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function teleportItem(itemName)
-    local stackOffsetY = 2 -- offset per stacked item
-    local count = 0
-
-    for _, item in ipairs(itemsFolder:GetChildren()) do
-        if item.Name == itemName then
-            local targetPart = findTeleportablePart(item)
-            if targetPart then
-                remoteEvents.RequestStartDraggingItem:FireServer(item)
-                local offset = Vector3.new(0, count * stackOffsetY, 0)
-                targetPart.CFrame = rootPart.CFrame + offset
-                remoteEvents.StopDraggingItem:FireServer(item)
-
-                print("Moved", itemName, ":", item:GetFullName())
-                count = count + 1
-            else
-                warn("Couldn't find part for:", item:GetFullName())
+local function modifySettings(tool, changes)
+    local settingModule = tool:FindFirstChild("Setting")
+    if settingModule and settingModule:IsA("ModuleScript") then
+        local success, settings = pcall(require, settingModule)
+        if success and typeof(settings) == "table" then
+            for k, v in pairs(changes) do
+                settings[k] = v
             end
         end
     end
 end
 
--- Create one dropdown per bracket
-for groupName, itemList in pairs(bracket) do
-    -- Make dropdown label nicer: replace underscores and slashes, capitalize words
-    local label = groupName:gsub("_", " "):gsub("/", "/")
-    label = label:gsub("(%a)([%w_']*)", function(first, rest)
-        return first:upper() .. rest:lower()
-    end)
-    local dropdown = itemtp:CreateDropDown(label)
-    for _, itemName in ipairs(itemList) do
-        dropdown:AddButton(itemName, function()
-            teleportItem(itemName)
-        end)
+local function applyMods(tool)
+    if not tool or not tool:IsA("Tool") then return end
+
+    if Toggles.InfAmmoToggle.Value then applyAmmo(tool) end
+    if Toggles.NoJamToggle.Value then modifySettings(tool, { JamChance = 0 }) end
+    if Toggles.OneShotToggle.Value then modifySettings(tool, { ShotgunEnabled = true }) end
+    if Toggles.QuickReloadToggle.Value then modifySettings(tool, { ReloadTime = 0 }) end
+    if Toggles.RapidFireToggle.Value then
+        modifySettings(tool, {
+            Auto = true,
+            FireRate = 0.07,
+            Accuracy = 1,
+            SpreadX = 0,
+            SpreadY = 0,
+            Range = 50000,
+            JamChance = 0,
+            CameraRecoilingEnabled = false,
+            Recoil = 0,
+        })
     end
+    if Toggles.NoSpreadToggle.Value then
+        modifySettings(tool, {
+            CameraRecoilingEnabled = false,
+            Recoil = 0,
+            SpreadX = 0,
+            SpreadY = 0,
+        })
+    end
+
+    disableAnimations(tool)
 end
 
--- separation for the automation
+local function applyAllMods()
+    local char = getCharacter()
+    if char then
+        for _, tool in ipairs(char:GetChildren()) do applyMods(tool) end
+    end
+    for _, tool in ipairs(Backpack:GetChildren()) do applyMods(tool) end
+end
 
--- auto 
-
--- === SERVICES ===
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-
--- === PLAYER REFERENCES ===
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
-local itemsFolder = Workspace:WaitForChild("Items")
-local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
-local remoteConsume = remoteEvents:WaitForChild("RequestConsumeItem")
-
--- === POSITIONS ===
-local campfireDropPos = Vector3.new(0, 19, 0)
-local machineDropPos = Vector3.new(21, 16, -5)
-
--- === ITEM LISTS ===
-local campfireFuelItems = {"Log", "Coal", "Fuel Canister", "Oil Barrel", "Biofuel"}
-local autocookItems = {"Morsel", "Steak"}
-local autoGrindItems = {"UFO Junk", "UFO Component", "Old Car Engine", "Broken Fan", "Old Microwave", "Bolt", "Log", "Cultist Gem", "Sheet Metal", "Old Radio","Tyre","Washing Machine", "Cultist Experiment", "Cultist Component", "Gem of the Forest Fragment", "Broken Microwave"}
-local autoEatFoods = {"Cooked Steak", "Cooked Morsel", "Berry", "Carrot", "Apple"}
-local biofuelItems = {"Carrot", "Cooked Morsel", "Morsel", "Steak", "Cooked Steak", "Log"}
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char.ChildAdded:Connect(applyMods)
+    applyAllMods()
+end)
 
 -- === TOGGLES ===
-local autoFuelEnabledItems = {}
-local autoCookEnabledItems = {}
-local autoGrindEnabledItems = {}
-local autoEatEnabled = false
-local autoBreakEnabled = false
-local autoBiofuelEnabledItems = {}
-local alwaysFeedEnabledItems = {}
 
--- === MOVE ITEM FUNCTION (STABLE) ===
-local function moveItemToPos(item, position)
-    if not item or not item:IsDescendantOf(workspace) then return end
-    local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart") or item:FindFirstChild("Handle")
-    if not part then return end
+RightGroupBox:AddToggle("InfAmmoToggle", {
+    Text = "Infinite Ammo",
+    Callback = applyAllMods
+})
 
-    if not item.PrimaryPart then
-        pcall(function() item.PrimaryPart = part end)
-    end
+RightGroupBox:AddToggle("NoJamToggle", {
+    Text = "No Jam",
+    Callback = applyAllMods
+})
 
+RightGroupBox:AddToggle("OneShotToggle", {
+    Text = "One Shot Kill",
+    Callback = applyAllMods
+})
+
+RightGroupBox:AddToggle("QuickReloadToggle", {
+    Text = "Quick Reload",
+    Callback = applyAllMods
+})
+
+RightGroupBox:AddToggle("RapidFireToggle", {
+    Text = "Rapid Fire",
+    Callback = applyAllMods
+})
+
+RightGroupBox:AddToggle("NoSpreadToggle", {
+    Text = "No Spread",
+    Callback = applyAllMods
+})
+
+local RightGroupBox = Tabs.Main:AddLeftGroupbox("Player")
+
+local walkspeedEnabled = false
+local currentWalkspeed = 14
+
+RightGroupBox:AddToggle("WalkspeedToggle", {
+	Text = "Enable Walkspeed",
+	Default = false,
+	Callback = function(state)
+		walkspeedEnabled = state
+
+		local player = game.Players.LocalPlayer
+		local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = state and currentWalkspeed or 16
+		end
+
+		if state then
+			Library:Notify("Walkspeed Enabled (" .. currentWalkspeed .. ")", 3)
+		else
+			Library:Notify("Walkspeed Disabled (reset to 10)", 3)
+		end
+	end,
+})
+
+RightGroupBox:AddSlider("MySlider", {
+	Text = "Walkspeed",
+	Default = 10,
+	Min = 0,
+	Max = 23,
+	Rounding = 1,
+	Compact = false,
+	Callback = function(value)
+		currentWalkspeed = value
+
+		if walkspeedEnabled then
+			local player = game.Players.LocalPlayer
+			local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+			if humanoid then
+				humanoid.WalkSpeed = value
+			end
+			Library:Notify("Walkspeed set to: " .. value, 3)
+		end
+	end,
+})
+
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local originalHoldDurations = {}
+
+RightGroupBox:AddToggle("MyToggle", {
+	Text = "Instant Interact",
+	Callback = function(Value)
+		if Value then
+			for _, v in pairs(Workspace:GetDescendants()) do
+				if v:IsA("ProximityPrompt") then
+					if originalHoldDurations[v] == nil then
+						originalHoldDurations[v] = v.HoldDuration
+					end
+					v.HoldDuration = 0
+				end
+			end
+			if not _G._instantPromptConnection then
+				_G._instantPromptConnection = ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+					if originalHoldDurations[prompt] == nil then
+						originalHoldDurations[prompt] = prompt.HoldDuration
+					end
+					prompt.HoldDuration = 0
+				end)
+			end
+		else
+			for prompt, duration in pairs(originalHoldDurations) do
+				if prompt and prompt:IsDescendantOf(Workspace) then
+					prompt.HoldDuration = duration
+				end
+			end
+			originalHoldDurations = {}
+
+			if _G._instantPromptConnection then
+				_G._instantPromptConnection:Disconnect()
+				_G._instantPromptConnection = nil
+			end
+		end
+	end,
+})
+
+RightGroupBox:AddToggle("MyToggle", {
+	Text = "Inf Stamina",
+	Callback = function(Value)
+		_G.kR9 = Value
+
+		local xM5 = game:GetService("RunService")
+		local vD1 = false
+
+		if Value and not hooked then
+			for _, nB4 in pairs(getgc(true)) do
+				if type(nB4) == "table" then
+					for pL7, yH3 in pairs(nB4) do
+						if pL7 == "Stamina" then
+							vD1 = true
+							local tF8 = getmetatable(nB4)
+							if tF8 then
+								setreadonly(tF8, false)
+								local cJ4 = tF8.__index
+								local wK6 = tF8.__newindex
+
+								tF8.__index = function(t, k)
+									if k == "Stamina" and _G.kR9 then
+										return 100
+									end
+									return cJ4(t, k)
+								end
+
+								tF8.__newindex = function(t, k, v)
+									if k == "Stamina" and _G.kR9 then
+										return
+									end
+									return wK6(t, k, v)
+								end
+							end
+
+							heartbeatConnection = xM5.Heartbeat:Connect(function()
+								if _G.kR9 then
+									nB4.Stamina = 100
+									if nB4.createLowStamina then
+										nB4.createLowStamina = function() return end
+									end
+								end
+							end)
+
+							hooked = true
+							break
+						end
+					end
+				end
+				if vD1 then break end
+			end
+		elseif not Value then
+			if heartbeatConnection then
+				heartbeatConnection:Disconnect()
+				heartbeatConnection = nil
+			end
+		end
+	end,
+})
+
+local roadsSidewalksFolder = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Roads/Sidewalks")
+local opp = {}
+
+function setHiddenProperty(instance, property, value)
     pcall(function()
-        remoteEvents.RequestStartDraggingItem:FireServer(item)
-        task.wait(0.05)
-        item:SetPrimaryPartCFrame(CFrame.new(position))
-        task.wait(0.05)
-        remoteEvents.StopDraggingItem:FireServer(item)
+        sethiddenproperty(instance, property, value)
     end)
 end
 
--- === UI INITIALIZATION ===
-local autofarmss = autofarmss or main -- fallback if not already defined
-local function createDropdownWithCheckboxes(title, itemList, enabledTable)
-    local dropdown = autofarmss:CreateDropDown(title)
-    for _, itemName in ipairs(itemList) do
-        dropdown:AddCheckbox(itemName, function(checked)
-            enabledTable[itemName] = checked
-        end)
-    end
-    dropdown:AddCheckbox("Bulk (All)", function(checked)
-        for _, itemName in ipairs(itemList) do
-            enabledTable[itemName] = checked
-        end
-    end)
-    return dropdown
+function exlusionssf(part)
+    return (roadsSidewalksFolder and part:IsDescendantOf(roadsSidewalksFolder)) or
+        (part.Name == "default") or
+        (part.Name == "Sidewalk") or
+        (part.Name == "Floor") or
+        (part.Name == "Collision") or
+        (part.Name == "QuaterCylinder") or
+        part:IsDescendantOf(localPlayer.Character) or
+        (part.Parent and part.Parent:IsA("Model") and Players:GetPlayerFromCharacter(part.Parent) ~= nil) or
+        (part:IsA("VehicleSeat") or part:IsA("Vehicle"))
 end
 
-createDropdownWithCheckboxes("Auto Feed Campfire (ignores HP)", campfireFuelItems, alwaysFeedEnabledItems)
-createDropdownWithCheckboxes("Auto Feed Campfire (HP Based)", campfireFuelItems, autoFuelEnabledItems)
-createDropdownWithCheckboxes("Auto Cook Food", autocookItems, autoCookEnabledItems)
-createDropdownWithCheckboxes("Auto Machine Grind", autoGrindItems, autoGrindEnabledItems)
-createDropdownWithCheckboxes("Auto Biofuel Processor", biofuelItems, autoBiofuelEnabledItems)
-
--- Auto Eat
-local eatDropdown = autofarmss:CreateDropDown("Auto Eat (3 sec interval)")
-eatDropdown:AddCheckbox("Enable Auto Eat", function(checked)
-    autoEatEnabled = checked
-end)
-
--- Auto Eat HP Based
-local eatHPDropdown = autofarmss:CreateDropDown("Auto Eat (HP Bar Based)")
-eatHPDropdown:AddCheckbox("Enable Auto Eat (HP Bar Based)", function(checked)
-    autoEatHPEnabled = checked
-end)
-
-
--- === BACKGROUND COROUTINES ===
-coroutine.wrap(function() -- Always Feed Campfire
-    while true do
-        for itemName, enabled in pairs(alwaysFeedEnabledItems) do
-            if enabled then
-                for _, item in ipairs(itemsFolder:GetChildren()) do
-                    if item.Name == itemName then
-                        moveItemToPos(item, campfireDropPos)
-                    end
-                end
+function updmommy()
+    local pp = Camera.CFrame.Position
+    local radius = 15
+    local region = Region3.new(
+        pp - Vector3.new(radius, radius, radius),
+        pp + Vector3.new(radius, radius, radius)
+    )
+    local parts = Workspace:FindPartsInRegion3(region, nil, math.huge)
+    for _, part in ipairs(parts) do
+        if part:IsA("BasePart") and not exlusionssf(part) then
+            if not opp[part] then
+                opp[part] = {
+                    CanCollide = part.CanCollide,
+                }
+                setHiddenProperty(part, "CanCollide", false)
             end
         end
-        task.wait(2)
-    end
-end)()
-
-coroutine.wrap(function() -- HP-Based Feed
-    local campfire = Workspace:WaitForChild("Map"):WaitForChild("Campground"):WaitForChild("MainFire")
-    local fillFrame = campfire.Center.BillboardGui.Frame.Background.Fill
-    while true do
-        local healthPercent = fillFrame.Size.X.Scale
-        if healthPercent < 0.7 then
-            repeat
-                for itemName, enabled in pairs(autoFuelEnabledItems) do
-                    if enabled then
-                        for _, item in ipairs(itemsFolder:GetChildren()) do
-                            if item.Name == itemName then
-                                moveItemToPos(item, campfireDropPos)
-                            end
-                        end
-                    end
-                end
-                task.wait(0.5)
-                healthPercent = fillFrame.Size.X.Scale
-            until healthPercent >= 1
-        end
-        task.wait(2)
-    end
-end)()
-
-coroutine.wrap(function() -- Auto Cook
-    while true do
-        for itemName, enabled in pairs(autoCookEnabledItems) do
-            if enabled then
-                for _, item in ipairs(itemsFolder:GetChildren()) do
-                    if item.Name == itemName then
-                        moveItemToPos(item, campfireDropPos)
-                    end
-                end
-            end
-        end
-        task.wait(2.5)
-    end
-end)()
-
-coroutine.wrap(function() -- Auto Grind
-    while true do
-        for itemName, enabled in pairs(autoGrindEnabledItems) do
-            if enabled then
-                for _, item in ipairs(itemsFolder:GetChildren()) do
-                    if item.Name == itemName then
-                        moveItemToPos(item, machineDropPos)
-                    end
-                end
-            end
-        end
-        task.wait(2.5)
-    end
-end)()
-
-coroutine.wrap(function() -- Auto Eat
-    while true do
-        if autoEatEnabled then
-            local available = {}
-            for _, item in ipairs(itemsFolder:GetChildren()) do
-                if table.find(autoEatFoods, item.Name) then
-                    table.insert(available, item)
-                end
-            end
-            if #available > 0 then
-                local food = available[math.random(1, #available)]
-                pcall(function() remoteConsume:InvokeServer(food) end)
-            end
-        end
-        task.wait(3)
-    end
-end)()
-
-local player = game:GetService("Players").LocalPlayer
-local hungerBar = player:WaitForChild("PlayerGui"):WaitForChild("Interface"):WaitForChild("StatBars"):WaitForChild("HungerBar"):WaitForChild("Bar")
-
-coroutine.wrap(function() -- Auto Eat (HP Bar Based)
-    while true do
-        if autoEatHPEnabled then
-            if hungerBar.Size.X.Scale <= 0.5 then
-                repeat
-                    local currentHunger = hungerBar.Size.X.Scale
-
-                    local available = {}
-                    for _, item in ipairs(itemsFolder:GetChildren()) do
-                        if item.Name and table.find(autoEatFoods, item.Name) then
-                            table.insert(available, item)
-                            print("Found available food item: ", item.Name)
-                        end
-                    end
-
-                    if #available > 0 then
-                        local food = available[math.random(1, #available)]
-                        if food then
-                            pcall(function()
-                                remoteConsume:InvokeServer(food)
-                            end)
-                        end
-                    else
-                        warn("No available food found in inventory.")
-                        break -- Stop trying if no food
-                    end
-
-                    task.wait(1) -- Wait for GUI to reflect update
-
-                until hungerBar.Size.X.Scale >= 0.99 or not autoEatHPEnabled
-            end
-        end
-        task.wait(3)
-    end
-end)()
-
-
-
-coroutine.wrap(function() -- Auto Biofuel
-    local biofuelProcessorPos
-    while true do
-        if not biofuelProcessorPos then
-            local processor = Workspace:FindFirstChild("Structures") and Workspace.Structures:FindFirstChild("Biofuel Processor")
-            local part = processor and processor:FindFirstChild("Part")
-            if part then
-                biofuelProcessorPos = part.Position + Vector3.new(0, 5, 0)
-            end
-        end
-
-        if biofuelProcessorPos then
-            for itemName, enabled in pairs(autoBiofuelEnabledItems) do
-                if enabled then
-                    for _, item in ipairs(itemsFolder:GetChildren()) do
-                        if item.Name == itemName then
-                            moveItemToPos(item, biofuelProcessorPos)
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(2)
-    end
-end)()
-
--- === TREE TELEPORT SYSTEM ===
-local originalTreeCFrames = {}
-local treesBrought = false
-
-local function getAllSmallTrees()
-    local trees = {}
-    local function scan(folder)
-        for _, obj in ipairs(folder:GetChildren()) do
-            if obj:IsA("Model") and obj.Name == "Small Tree" then
-                table.insert(trees, obj)
-            end
-        end
-    end
-
-    local map = Workspace:FindFirstChild("Map")
-    if map then
-        if map:FindFirstChild("Foliage") then scan(map.Foliage) end
-        if map:FindFirstChild("Landmarks") then scan(map.Landmarks) end
-    end
-    return trees
-end
-
-local function findTrunk(tree)
-    for _, part in ipairs(tree:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name == "Trunk" then return part end
     end
 end
 
-local function bringAllTrees()
-    local target = CFrame.new(rootPart.Position + rootPart.CFrame.LookVector * 10)
-    for _, tree in ipairs(getAllSmallTrees()) do
-        local trunk = findTrunk(tree)
-        if trunk then
-            if not originalTreeCFrames[tree] then originalTreeCFrames[tree] = trunk.CFrame end
-            tree.PrimaryPart = trunk
-            trunk.Anchored = false
-            trunk.CanCollide = false
-            task.wait()
-            tree:SetPrimaryPartCFrame(target + Vector3.new(math.random(-5,5), 0, math.random(-5,5)))
-            trunk.Anchored = true
+function reset()
+    for part, props in pairs(opp) do
+        if part:IsA("BasePart") then
+            setHiddenProperty(part, "CanCollide", props.CanCollide)
         end
     end
-    treesBrought = true
+    opp = {}
 end
 
-local function restoreTrees()
-    for tree, cframe in pairs(originalTreeCFrames) do
-        local trunk = findTrunk(tree)
-        if trunk then
-            tree.PrimaryPart = trunk
-            tree:SetPrimaryPartCFrame(cframe)
-            trunk.Anchored = true
-            trunk.CanCollide = true
+local noclipEnabled = false
+        
+RightGroupBox:AddToggle("MyToggle", {
+	Text = "noclip",
+	Callback = function(enabled)
+		noclipEnabled = enabled
+        if noclipEnabled then
+            task.spawn(function()
+                while noclipEnabled do
+                    updmommy()
+                    task.wait(0.1)
+                end
+            end)
+        else
+            reset()
+        end
+	end,
+})
+
+RightGroupBox:AddToggle("WallDelete", {
+    Text = "Delete Wall (E)",
+    Callback = function(state)
+        local mouse = player:GetMouse()
+        local targetPart = nil
+
+        if not RightGroupBox._hoverDeleteConns then
+            RightGroupBox._hoverDeleteConns = {}
+        end
+
+        if state then
+            RightGroupBox._hoverDeleteConns.Render = RunService.RenderStepped:Connect(function()
+                local target = mouse.Target
+                if target and target:IsA("BasePart") then
+                    targetPart = target
+                else
+                    targetPart = nil
+                end
+            end)
+
+            RightGroupBox._hoverDeleteConns.Input = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                if gameProcessed then return end
+                if input.KeyCode == Enum.KeyCode.E and targetPart then
+                    targetPart:Destroy()
+                end
+            end)
+        else
+            if RightGroupBox._hoverDeleteConns.Render then
+                RightGroupBox._hoverDeleteConns.Render:Disconnect()
+                RightGroupBox._hoverDeleteConns.Render = nil
+            end
+            if RightGroupBox._hoverDeleteConns.Input then
+                RightGroupBox._hoverDeleteConns.Input:Disconnect()
+                RightGroupBox._hoverDeleteConns.Input = nil
+            end
         end
     end
-    originalTreeCFrames = {}
-    treesBrought = false
+})
+
+local NoWallsEnabled = false
+local Walls = {}
+local WallsParent = {}
+local objectsToRemove = {}
+
+local function deepFind(parent, name)
+    for _, obj in ipairs(parent:GetDescendants()) do
+        if obj:IsA("Instance") and obj:GetFullName() == name then
+            return obj
+        end
+    end
+    return nil
 end
 
--- Tree toggle
-local miscdropdown = autofarmss:CreateDropDown("Auto Misc Features")
-miscdropdown:AddCheckbox("Auto Bring All Small Trees", function(checked)
-    autoBreakEnabled = checked
-    if checked and not treesBrought then
-        bringAllTrees()
-    elseif not checked and treesBrought then
-        restoreTrees()
+local function removeWalls()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+            if string.match(obj.Name:lower(), "wall") or obj.Size.Y > 8 then
+                if not Walls[obj] then
+                    Walls[obj] = obj
+                    WallsParent[obj] = obj.Parent
+                    obj.Parent = nil
+                end
+            end
+        end
+    end
+    
+    for _, path in ipairs(objectsToRemove) do
+        local obj = deepFind(workspace, path)
+        if obj then
+            obj:Destroy()
+        end
+    end
+end
+
+local function restoreWalls()
+    for wall, parent in pairs(WallsParent) do
+        if wall and parent then
+            wall.Parent = parent
+        end
+    end
+    Walls = {}
+    WallsParent = {}
+end
+
+
+RightGroupBox:AddToggle('MyToggle', {
+    Text = "No Walls",
+    Default = false,
+    Tooltip = "Toggle wall removal on or off",
+    Callback = function(enabled)
+        NoWallsEnabled = enabled
+        if NoWallsEnabled then
+            removeWalls()
+        else
+            restoreWalls()
+        end
+    end,
+})
+
+RightGroupBox:AddToggle("ResetButtonToggle", {
+	Text = "Enable Reset Button",
+	Default = false,
+	Tooltip = "Re-enables character reset from the menu",
+	Callback = function(state)
+		if state then
+			CoreGui:SetCore("ResetButtonCallback", true)
+			CoreGui:SetCore("ResetButtonCallback", function()
+				if player and player.Character then
+					player.Character:BreakJoints()
+				end
+			end)
+			Library:Notify("Reset button enabled", 3)
+		else
+			CoreGui:SetCore("ResetButtonCallback", false)
+			Library:Notify("Reset button disabled", 3)
+		end
+	end,
+})
+
+local originalBlood = miscGui:FindFirstChild("Blood") and miscGui.Blood:Clone() or nil
+local wasEnabled = true
+
+RightGroupBox:AddToggle("DisableBloodMisc", {
+    Text = "Disable Blood",
+    Default = false,
+}):OnChanged(function(value)
+    local blood = miscGui:FindFirstChild("Blood")
+
+    if value then
+        if blood then
+            blood:Destroy()
+        end
+        wasEnabled = miscGui.Enabled
+        miscGui.Enabled = false
+    else
+        if originalBlood and not miscGui:FindFirstChild("Blood") then
+            local cloned = originalBlood:Clone()
+            cloned.Parent = miscGui
+        end
+        miscGui.Enabled = wasEnabled
     end
 end)
+        
+local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Spoofer")
 
+local function spoofName(type, value)
+	local char = workspace:WaitForChild("Characters"):FindFirstChild(localPlayer.Name)
+	if not char then return end
 
--- === AUTO STRONGHOLD ===
+	local head = char:FindFirstChild("Head")
+	if not head then return end
 
-local strongholdRunning = true -- Always running
+	local tagName = (type == "Name" and "NameTag") or "RankTag"
+	local tag = head:FindFirstChild(tagName)
+	if not tag then return end
 
-local function getStrongholdTimerLabel()
-    return workspace:FindFirstChild("Map")
-        and workspace.Map:FindFirstChild("Landmarks")
-        and workspace.Map.Landmarks:FindFirstChild("Stronghold")
-        and workspace.Map.Landmarks.Stronghold:FindFirstChild("Functional")
-        and workspace.Map.Landmarks.Stronghold.Functional:FindFirstChild("Sign")
-        and workspace.Map.Landmarks.Stronghold.Functional.Sign:FindFirstChild("SurfaceGui")
-        and workspace.Map.Landmarks.Stronghold.Functional.Sign.SurfaceGui:FindFirstChild("Frame")
-        and workspace.Map.Landmarks.Stronghold.Functional.Sign.SurfaceGui.Frame:FindFirstChild("Body")
+	local frame = tag:FindFirstChild("MainFrame")
+	if not frame then return end
+
+	local label = frame:FindFirstChild("NameLabel")
+	if not label then return end
+
+	label.Text = value
 end
 
-local initialLabel = getStrongholdTimerLabel()
-local initialText = "Stronghold Timer: " .. tostring(initialLabel and initialLabel.ContentText or "N/A")
-local strongholdDropdown = main:CreateDropDown("Stronghold Clients")
+LeftGroupBox:AddInput("NameInput", {
+	Default = "display name",
+	Text = "Set Display Name",
+	Callback = function(val)
+		spoofName("Name", val)
+		Library:Notify("Display Name set to: " .. val, 3)
+	end,
+})
 
-local strongholdTimeChecker = main:CreateComment(initialText)
+LeftGroupBox:AddInput("UsernameInput", {
+	Default = "username",
+	Text = "Set Username",
+	Callback = function(val)
+		spoofName("Username", val)
+		Library:Notify("Username set to: " .. val, 3)
+	end,
+})
 
--- Coroutine to update timer text every second
-coroutine.wrap(function()
-    local lastTimerText = nil
-    while strongholdRunning do
-        local label = getStrongholdTimerLabel()
-        local timerText = "Stronghold Timer: " .. tostring(label and label.ContentText or "N/A")
+local RightGroupBox = Tabs.Main:AddRightGroupbox("Target Options")
+local targetName = nil
+local autoKillRunning = false
+local ScreenGui
 
-        if timerText ~= lastTimerText then
-            if strongholdTimeChecker.SetText then
-                strongholdTimeChecker:SetText(timerText)
+local function findPlayerByName(input)
+	input = input:lower()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local username = player.Name:lower()
+		local displayName = player.DisplayName:lower()
+
+		if username:find(input, 1, true) or displayName:find(input, 1, true) then
+			return player
+		end
+	end
+	return nil
+end
+
+RightGroupBox:AddInput("TargetPlayer", {
+	Default = "PlayerNameHere",
+	Numeric = false,
+	Finished = true,
+	ClearTextOnFocus = true,
+	Text = "Target Player Name",
+	Callback = function(Text)
+		targetName = Text
+	end,
+})
+
+RightGroupBox:AddToggle("AutoKillPlayer", {
+	Text = "Auto Kill Player (Fist)",
+	Default = false,
+}):OnChanged(function(Value)
+	autoKillRunning = Value
+
+	if Value and targetName then
+		task.spawn(function()
+			while autoKillRunning do
+				local character = LocalPlayer.Character
+				local targetPlayer = Players:FindFirstChild(targetName)
+				if not character or not targetPlayer then task.wait(0.5) continue end
+				
+				local targetHRP = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if not hrp or not targetHRP then task.wait(0.5) continue end
+
+				local backpack = LocalPlayer:FindFirstChild("Backpack")
+				local fist = backpack and backpack:FindFirstChild("Fist")
+				if fist then
+					character.Humanoid:EquipTool(fist)
+					task.wait(0.1)
+				end
+
+				local targetPosition = targetHRP.Position
+				local offsetPosition = targetHRP.CFrame.LookVector * -2
+				local newPosition = targetPosition + offsetPosition
+				hrp.CFrame = CFrame.new(newPosition, targetPosition)
+
+				VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+				task.wait(0.05)
+				VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+
+				task.wait(0.25)
+			end
+		end)
+	end
+end)
+
+local function createInventoryGUI(playerName)
+	local targetPlayer = findPlayerByName(playerName)
+	if not targetPlayer then return end
+
+	if ScreenGui then
+		ScreenGui:Destroy()
+	end
+
+	local backpack = targetPlayer:FindFirstChild("Backpack")
+	local items = (backpack and backpack:GetChildren()) or {}
+
+	local itemCounts = {}
+	for _, tool in ipairs(items) do
+		if tool:IsA("Tool") then
+			itemCounts[tool.Name] = (itemCounts[tool.Name] or 0) + 1
+		end
+	end
+
+	local sortedNames = {}
+	for name in pairs(itemCounts) do
+		table.insert(sortedNames, name)
+	end
+	table.sort(sortedNames)
+
+	local equippedTools = {}
+	if Character then
+		for _, child in ipairs(Character:GetChildren()) do
+			if child:IsA("Tool") then
+				table.insert(equippedTools, child.Name)
+			end
+		end
+	end
+
+	local totalLines = #equippedTools + #sortedNames + (#equippedTools > 0 and 1 or 0)
+	local maxVisible = 10
+	local guiHeight = totalLines > 0 and (35 + math.min(totalLines, maxVisible) * 29 + 10) or 50
+
+	ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "InventoryDisplay"
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+	local Background = Instance.new("Frame")
+	Background.Name = "Background"
+	Background.Size = UDim2.new(0, 260, 0, guiHeight)
+	Background.Position = UDim2.new(1, -280, 0, 40)
+	Background.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	Background.BorderSizePixel = 0
+	Background.Parent = ScreenGui
+	Instance.new("UICorner", Background).CornerRadius = UDim.new(0, 12)
+
+	local Gradient = Instance.new("UIGradient", Background)
+	Gradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 55)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 35))
+	}
+	Gradient.Rotation = 45
+
+	local Stroke = Instance.new("UIStroke", Background)
+	Stroke.Color = Color3.fromRGB(80, 80, 80)
+	Stroke.Thickness = 1
+
+	local TitleLabel = Instance.new("TextLabel", Background)
+	TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+	TitleLabel.BackgroundTransparency = 1
+	TitleLabel.Font = Enum.Font.GothamBold
+	TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	TitleLabel.TextScaled = true
+	TitleLabel.TextWrapped = true
+	TitleLabel.TextStrokeTransparency = 0.6
+	TitleLabel.Text = (totalLines > 0 and (playerName .. "'s Inventory")) or (playerName .. "'s Inventory: Empty")
+
+	if totalLines > 0 then
+		local ScrollFrame = Instance.new("ScrollingFrame", Background)
+		ScrollFrame.Size = UDim2.new(1, -12, 1, -45)
+		ScrollFrame.Position = UDim2.new(0, 6, 0, 35)
+		ScrollFrame.ScrollBarThickness = 6
+		ScrollFrame.BackgroundTransparency = 1
+		ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		ScrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+		ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalLines * 29)
+
+		local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
+		UIListLayout.Padding = UDim.new(0, 5)
+		UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+		local UIPadding = Instance.new("UIPadding", ScrollFrame)
+		UIPadding.PaddingTop = UDim.new(0, 5)
+
+		if #equippedTools > 0 then
+			local label = Instance.new("TextLabel", ScrollFrame)
+			label.Size = UDim2.new(1, -12, 0, 24)
+			label.BackgroundColor3 = Color3.fromRGB(80, 40, 40)
+			label.BorderSizePixel = 0
+			label.Font = Enum.Font.GothamBold
+			label.TextColor3 = Color3.fromRGB(255, 255, 255)
+			label.TextScaled = true
+			label.Text = "-- Equipped --"
+			Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
+
+			for _, name in ipairs(equippedTools) do
+				local toolLabel = Instance.new("TextLabel", ScrollFrame)
+				toolLabel.Size = UDim2.new(1, -12, 0, 24)
+				toolLabel.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
+				toolLabel.BorderSizePixel = 0
+				toolLabel.Font = Enum.Font.Gotham
+				toolLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+				toolLabel.TextScaled = true
+				toolLabel.Text = name
+				Instance.new("UICorner", toolLabel).CornerRadius = UDim.new(0, 6)
+			end
+		end
+
+		for _, name in ipairs(sortedNames) do
+			local amount = itemCounts[name]
+			local label = Instance.new("TextLabel", ScrollFrame)
+			label.Size = UDim2.new(1, -12, 0, 24)
+			label.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			label.BorderSizePixel = 0
+			label.Font = Enum.Font.Gotham
+			label.TextColor3 = Color3.fromRGB(255, 255, 255)
+			label.TextScaled = true
+			label.Text = amount > 1 and (name .. " x" .. amount) or name
+			Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
+		end
+	end
+end
+
+RightGroupBox:AddToggle("MyToggle", {
+	Text = "View Inventory",
+	Default = false,
+	Callback = function(state)
+		if state and targetName then
+			createInventoryGUI(targetName)
+		else
+			if ScreenGui then
+				ScreenGui:Destroy()
+				ScreenGui = nil
+			end
+		end
+	end,
+})
+
+local spectateConnection = nil
+
+RightGroupBox:AddToggle("SpectateTarget", {
+	Text = "Spectate Target",
+	Default = false,
+	Callback = function(state)
+
+		if spectateConnection then
+			spectateConnection:Disconnect()
+			spectateConnection = nil
+		end
+
+		if state and targetName then
+			spectateConnection = game:GetService("RunService").RenderStepped:Connect(function()
+				local targetPlayer = Players:FindFirstChild(targetName)
+				if targetPlayer and targetPlayer.Character then
+					if hrp then
+						Camera.CameraSubject = hrp
+					end
+				end
+			end)
+		else
+			local char = LocalPlayer.Character
+			if char and char:FindFirstChild("Humanoid") then
+				Camera.CameraSubject = char.Humanoid
+			end
+		end
+	end
+})
+
+local LeftGroupBox = Tabs.Visuals:AddLeftGroupbox("Esp")
+
+local Settings = {
+    Box_Color = Color3.fromRGB(255, 255, 255),
+    Box_Thickness = 1
+}
+
+local ESPConnections = {}
+local ESPObjects = {}
+
+local BoxESPEnabled = false
+
+local function NewQuad(thickness, color)
+    local quad = Drawing.new("Quad")
+    quad.Visible = false
+    quad.PointA = Vector2.new(0,0)
+    quad.PointB = Vector2.new(0,0)
+    quad.PointC = Vector2.new(0,0)
+    quad.PointD = Vector2.new(0,0)
+    quad.Color = color
+    quad.Filled = false
+    quad.Thickness = thickness
+    quad.Transparency = 1
+    return quad
+end
+
+local function Visibility(state, lib)
+    lib.Visible = state
+end
+
+local function CreateESP(plr)
+    local box = NewQuad(Settings.Box_Thickness, Settings.Box_Color)
+    ESPObjects[plr] = box
+
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        if not BoxESPEnabled or not box then
+            Visibility(false, box)
+            return
+        end
+
+        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Head") then
+            local HumPos, OnScreen = Camera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+            if OnScreen then
+                local head = Camera:WorldToViewportPoint(plr.Character.Head.Position)
+                local DistanceY = math.clamp((Vector2.new(head.X, head.Y) - Vector2.new(HumPos.X, HumPos.Y)).magnitude, 2, math.huge)
+                box.PointA = Vector2.new(HumPos.X + DistanceY, HumPos.Y - DistanceY * 2)
+                box.PointB = Vector2.new(HumPos.X - DistanceY, HumPos.Y - DistanceY * 2)
+                box.PointC = Vector2.new(HumPos.X - DistanceY, HumPos.Y + DistanceY * 2)
+                box.PointD = Vector2.new(HumPos.X + DistanceY, HumPos.Y + DistanceY * 2)
+                Visibility(true, box)
             else
-                local commentContent = strongholdTimeChecker:FindFirstChild("commentcontent")
-                if commentContent then
-                    commentContent.Text = timerText
-                end
-            end
-            lastTimerText = timerText
-        end
-
-        task.wait(0.5) -- check every second
-    end
-end)()
-
-strongholdDropdown:AddButton("Teleport to Stronghold", function()
-    local targetPart = workspace:FindFirstChild("Map")
-        and workspace.Map:FindFirstChild("Landmarks")
-        and workspace.Map.Landmarks:FindFirstChild("Stronghold")
-        and workspace.Map.Landmarks.Stronghold:FindFirstChild("Functional")
-        and workspace.Map.Landmarks.Stronghold.Functional:FindFirstChild("EntryDoors")
-        and workspace.Map.Landmarks.Stronghold.Functional.EntryDoors:FindFirstChild("DoorRight")
-        and workspace.Map.Landmarks.Stronghold.Functional.EntryDoors.DoorRight:FindFirstChild("Model")
-
-    if targetPart then
-        local children = targetPart:GetChildren()
-        local destination = children[5]
-
-        if destination and destination:IsA("BasePart") then
-            local hrp = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                -- Offset slightly above the target to avoid clipping
-                hrp.CFrame = destination.CFrame + Vector3.new(0, 5, 0)
-                print("Teleported to Stronghold DoorRight Model child #5.")
-            else
-                warn("HumanoidRootPart not found!")
+                Visibility(false, box)
             end
         else
-            warn("Child #5 is missing or not a BasePart!")
+            Visibility(false, box)
+            if not Players:FindFirstChild(plr.Name) then
+                connection:Disconnect()
+            end
         end
+    end)
+
+    ESPConnections[plr] = connection
+end
+
+local function EnableESP()
+    BoxESPEnabled = true
+    for _, v in ipairs(Players:GetPlayers()) do
+        if v ~= player and not ESPObjects[v] then
+            CreateESP(v)
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(newplr)
+        if newplr ~= player then
+            CreateESP(newplr)
+        end
+    end)
+end
+
+local function DisableESP()
+    BoxESPEnabled = false
+    for plr, connection in pairs(ESPConnections) do
+        if connection then connection:Disconnect() end
+    end
+
+    for plr, box in pairs(ESPObjects) do
+        if box then box:Remove() end
+    end
+
+    table.clear(ESPConnections)
+    table.clear(ESPObjects)
+end
+
+LeftGroupBox:AddToggle("MyToggle", {
+    Text = "Box Esp",
+    Callback = function(Value)
+        if Value then
+            EnableESP()
+        else
+            DisableESP()
+        end
+    end,
+})
+
+local NameESPConnections = {} 
+local NameESPTexts = {}       
+local GlobalConnections = {}  
+
+local function removeESP(player)
+    if NameESPConnections[player] then
+        for _, conn in ipairs(NameESPConnections[player]) do
+            pcall(function() conn:Disconnect() end)
+        end
+        NameESPConnections[player] = nil
+    end
+
+    if NameESPTexts[player] then
+        pcall(function()
+            NameESPTexts[player].Visible = false
+            NameESPTexts[player]:Remove()
+        end)
+        NameESPTexts[player] = nil
+    end
+end
+
+local function createESP(player, character)
+    local head = character:WaitForChild("Head", 5)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if not head or not humanoid then return end
+
+    removeESP(player)
+
+    local text = Drawing.new("Text")
+    text.Visible = false
+    text.Center = true
+    text.Outline = true
+    text.Font = 2
+    text.Size = 14
+    text.Color = Color3.fromRGB(255, 255, 255)
+
+    NameESPTexts[player] = text
+
+    local renderConn = RunService.RenderStepped:Connect(function()
+        if not character:IsDescendantOf(workspace) then
+            removeESP(player)
+            return
+        end
+
+        local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        if onScreen then
+            text.Position = Vector2.new(pos.X, pos.Y - 25)
+            text.Text = player.DisplayName
+            text.Visible = true
+        else
+            text.Visible = false
+        end
+    end)
+
+    local deathConn = humanoid.HealthChanged:Connect(function(health)
+        if health <= 0 then
+            removeESP(player)
+        end
+    end)
+
+    local ancestorConn = character.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            removeESP(player)
+        end
+    end)
+
+    NameESPConnections[player] = {renderConn, deathConn, ancestorConn}
+end
+
+local function handlePlayer(player)
+    if player == LocalPlayer then return end
+
+    if player.Character then
+        createESP(player, player.Character)
+    end
+
+    local charConn = player.CharacterAdded:Connect(function(char)
+        createESP(player, char)
+    end)
+
+    if not NameESPConnections[player] then
+        NameESPConnections[player] = {}
+    end
+    table.insert(NameESPConnections[player], charConn)
+end
+
+local function EnableNameESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        handlePlayer(player)
+    end
+
+    GlobalConnections["PlayerAdded"] = Players.PlayerAdded:Connect(handlePlayer)
+
+    GlobalConnections["PlayerRemoving"] = Players.PlayerRemoving:Connect(function(player)
+        removeESP(player)
+    end)
+end
+
+local function DisableNameESP()
+    for player in pairs(NameESPConnections) do
+        removeESP(player)
+    end
+
+    for _, conn in pairs(GlobalConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    GlobalConnections = {}
+end
+
+LeftGroupBox:AddToggle("NameESP", {
+    Text = "Name Esp",
+    Callback = function(Value)
+        if Value then
+            EnableNameESP()
+        else
+            DisableNameESP()
+        end
+    end,
+})
+
+local function NewLine(thickness, color)
+    local line = Drawing.new("Line")
+    line.Visible = false
+    line.From = Vector2.new(0, 0)
+    line.To = Vector2.new(0, 0)
+    line.Color = color 
+    line.Thickness = thickness
+    line.Transparency = 1
+    return line
+end
+
+local function Visibility(state, lib)
+    lib.Visible = state
+end
+
+local function HSVtoRGB(h, s, v)
+    local c = v * s
+    local x = c * (1 - math.abs((h * 6) % 2 - 1))
+    local m = v - c
+    local r, g, b
+
+    if h < 1/6 then
+        r, g, b = c, x, 0
+    elseif h < 2/6 then
+        r, g, b = x, c, 0
+    elseif h < 3/6 then
+        r, g, b = 0, c, x
+    elseif h < 4/6 then
+        r, g, b = 0, x, c
+    elseif h < 5/6 then
+        r, g, b = x, 0, c
     else
-        warn("DoorRight.Model path not found!")
+        r, g, b = c, 0, x
+    end
+
+    return Color3.new(r + m, g + m, b + m)
+end
+
+local connections = {}
+
+LeftGroupBox:AddToggle("MyToggle", {
+    Text = "Health Bar",
+    Callback = function(Value)
+        if Value then
+            for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                if v.Name ~= player.Name then
+                    local healthbar = NewLine(3, Color3.fromRGB(0, 0, 0))
+                    local greenhealth = NewLine(1.5, Color3.fromRGB(0, 255, 0))
+                    local conn
+                    conn = RunService.RenderStepped:Connect(function()
+                        if v.Character and v.Character:FindFirstChild("Humanoid") and v.Character:FindFirstChild("HumanoidRootPart") then
+                            local HumPos, OnScreen = camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+                            if OnScreen then
+                                local head = camera:WorldToViewportPoint(v.Character.Head.Position)
+                                local DistanceY = math.clamp((Vector2.new(head.X, head.Y) - Vector2.new(HumPos.X, HumPos.Y)).magnitude, 2, math.huge)
+
+                                local d = (Vector2.new(HumPos.X - DistanceY, HumPos.Y - DistanceY * 2) - Vector2.new(HumPos.X - DistanceY, HumPos.Y + DistanceY * 2)).magnitude 
+                                local healthoffset = v.Character.Humanoid.Health / v.Character.Humanoid.MaxHealth * d
+
+                                greenhealth.From = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y + DistanceY * 2)
+                                greenhealth.To = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y + DistanceY * 2 - healthoffset)
+
+                                healthbar.From = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y + DistanceY * 2)
+                                healthbar.To = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y - DistanceY * 2)
+
+                                local hue = (tick() % 5) / 5  
+                                greenhealth.Color = HSVtoRGB(hue, 1, 1)
+
+                                Visibility(true, healthbar)
+                                Visibility(true, greenhealth)
+                            else
+                                Visibility(false, healthbar)
+                                Visibility(false, greenhealth)
+                            end
+                        else
+                            Visibility(false, healthbar)
+                            Visibility(false, greenhealth)
+                        end
+                    end)
+
+                    connections[v] = {conn, healthbar, greenhealth}
+                end
+            end
+            connections.PlayerAddedConn = game:GetService("Players").PlayerAdded:Connect(function(newplr)
+                if newplr.Name ~= player.Name then
+                    local healthbar = NewLine(3, Color3.fromRGB(0, 0, 0))
+                    local greenhealth = NewLine(1.5, Color3.fromRGB(0, 255, 0))
+                    
+                    local conn
+                    conn = RunService.RenderStepped:Connect(function()
+                        if newplr.Character and newplr.Character:FindFirstChild("Humanoid") and newplr.Character:FindFirstChild("HumanoidRootPart") then
+                            local HumPos, OnScreen = camera:WorldToViewportPoint(newplr.Character.HumanoidRootPart.Position)
+                            if OnScreen then
+                                local head = camera:WorldToViewportPoint(newplr.Character.Head.Position)
+                                local DistanceY = math.clamp((Vector2.new(head.X, head.Y) - Vector2.new(HumPos.X, HumPos.Y)).magnitude, 2, math.huge)
+                                local d = (Vector2.new(HumPos.X - DistanceY, HumPos.Y - DistanceY * 2) - Vector2.new(HumPos.X - DistanceY, HumPos.Y + DistanceY * 2)).magnitude 
+                                local healthoffset = newplr.Character.Humanoid.Health / newplr.Character.Humanoid.MaxHealth * d
+                                greenhealth.From = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y + DistanceY * 2)
+                                greenhealth.To = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y + DistanceY * 2 - healthoffset)
+                                healthbar.From = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y + DistanceY * 2)
+                                healthbar.To = Vector2.new(HumPos.X - DistanceY - 4, HumPos.Y - DistanceY * 2)
+                                local hue = (tick() % 5) / 5  
+                                greenhealth.Color = HSVtoRGB(hue, 1, 1)
+                                Visibility(true, healthbar)
+                                Visibility(true, greenhealth)
+                            else
+                                Visibility(false, healthbar)
+                                Visibility(false, greenhealth)
+                            end
+                        else
+                            Visibility(false, healthbar)
+                            Visibility(false, greenhealth)
+                        end
+                    end)
+
+                    connections[newplr] = {conn, healthbar, greenhealth}
+                end
+            end)
+
+        else
+            for k, v in pairs(connections) do
+                if k ~= "PlayerAddedConn" then
+                    local conn, healthbar, greenhealth = unpack(v)
+                    if conn then conn:Disconnect() end
+                    if healthbar then healthbar.Visible = false healthbar:Remove() end
+                    if greenhealth then greenhealth.Visible = false greenhealth:Remove() end
+                end
+            end
+            if connections.PlayerAddedConn then
+                connections.PlayerAddedConn:Disconnect()
+                connections.PlayerAddedConn = nil
+            end
+            connections = {}
+        end
+    end,
+})
+
+local activeESP = {}
+local connections = {}
+local PlayerAddedConn
+
+local function removeESP(player)
+	if activeESP[player] then
+		for _, obj in ipairs(activeESP[player]) do
+			if typeof(obj) == "Instance" or typeof(obj) == "RBXScriptConnection" then
+				pcall(function() obj:Disconnect() end)
+			elseif typeof(obj) == "table" then
+				for _, drawing in ipairs(obj) do
+					pcall(function()
+						drawing.Visible = false
+						drawing:Remove()
+					end)
+				end
+			end
+		end
+		activeESP[player] = nil
+	end
+end
+
+local function createESP(player, character)
+	local Humanoid = character:WaitForChild("Humanoid", 5)
+	local Head = character:WaitForChild("Head", 5)
+	if not Humanoid or not Head then return end
+
+	removeESP(player)
+
+	local label = Drawing.new("Text")
+	label.Visible = false
+	label.Center = true
+	label.Outline = true
+	label.Font = 2
+	label.Size = 13
+	label.Color = Color3.new(1, 1, 1)
+
+	local distanceLabel = Drawing.new("Text")
+	distanceLabel.Visible = false
+	distanceLabel.Center = true
+	distanceLabel.Outline = true
+	distanceLabel.Font = 2
+	distanceLabel.Size = 13
+	distanceLabel.Color = Color3.new(1, 0.5, 0)
+
+	local renderConn = RunService.RenderStepped:Connect(function()
+		if not character:IsDescendantOf(workspace) then
+			removeESP(player)
+			return
+		end
+
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+
+		local screenPos, onScreen = Camera:WorldToViewportPoint(Head.Position + Vector3.new(0, 0.5, 0))
+		if onScreen then
+			local distance = (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+			label.Position = Vector2.new(screenPos.X, screenPos.Y - 14)
+			label.Text = "Distance:"
+			label.Visible = true
+
+			distanceLabel.Position = Vector2.new(screenPos.X, screenPos.Y)
+			distanceLabel.Text = string.format("%.1f", distance)
+			distanceLabel.Visible = true
+		else
+			label.Visible = false
+			distanceLabel.Visible = false
+		end
+	end)
+
+	local deathConn = Humanoid.HealthChanged:Connect(function(health)
+		if health <= 0 then
+			removeESP(player)
+		end
+	end)
+
+	local ancestryConn = character.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			removeESP(player)
+		end
+	end)
+
+	activeESP[player] = {
+		{label, distanceLabel},
+		renderConn,
+		deathConn,
+		ancestryConn
+	}
+end
+
+local function onCharacterLoaded(player, character)
+	if player == LocalPlayer then return end
+	createESP(player, character)
+end
+
+local function onPlayerAdded(player)
+	connections[player] = player.CharacterAdded:Connect(function(character)
+		onCharacterLoaded(player, character)
+	end)
+	if player.Character then
+		onCharacterLoaded(player, player.Character)
+	end
+end
+
+local function enableESP()
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			onPlayerAdded(player)
+		end
+	end
+	PlayerAddedConn = Players.PlayerAdded:Connect(onPlayerAdded)
+end
+
+local function disableESP()
+	if PlayerAddedConn then PlayerAddedConn:Disconnect() end
+	for _, conn in pairs(connections) do
+		pcall(function() conn:Disconnect() end)
+	end
+	connections = {}
+
+	for player in pairs(activeESP) do
+		removeESP(player)
+	end
+end
+
+local function toggleESP(state)
+	if state then
+		enableESP()
+	else
+		disableESP()
+	end
+end
+
+LeftGroupBox:AddToggle("DistanceESP", {
+	Text = "Distance Esp",
+	Callback = function(state)
+		toggleESP(state)
+	end,
+})
+
+local function loadModuleFromGitHub(url)
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if success and type(result) == "function" then
+        return result(Library, workspace.CurrentCamera, game:GetService("Players"), game:GetService("Players").LocalPlayer)
+    else
+    end
+end
+
+local toolLabelModule
+
+LeftGroupBox:AddToggle("ShowEquippedTool", {
+    Text = "Show Equipped Item",
+    Callback = function(state)
+        if not toolLabelModule then
+            toolLabelModule = loadModuleFromGitHub("https://raw.githubusercontent.com/YOURNAME/ESP/main/toollabel.lua")
+        end
+        if toolLabelModule then
+            if state then
+                toolLabelModule.Enable()
+            else
+                toolLabelModule.Disable()
+            end
+        end
+    end
+})
+
+local V2, V3, CF, NewDrawing = Vector2.new, Vector3.new, CFrame.new, Drawing.new
+
+_G.AirChams = {
+	Enabled = false,
+	Color = Color3.fromRGB(0, 255, 255),
+	Transparency = 0.2,
+	Thickness = 0,
+	Filled = true,
+	EntireBody = false,
+	Wrapped = {}
+}
+
+local function WorldToScreen(pos)
+	local vec, onScreen = Camera:WorldToViewportPoint(pos)
+	return V2(vec.X, vec.Y), onScreen
+end
+
+local function UpdateCham(part, chamData)
+	local cf, size = part.CFrame, part.Size / 2
+	local p = {
+		cf * CF(-size.X,  size.Y, -size.Z),
+		cf * CF( size.X,  size.Y, -size.Z),
+		cf * CF(-size.X, -size.Y, -size.Z),
+		cf * CF( size.X, -size.Y, -size.Z),
+		cf * CF(-size.X,  size.Y,  size.Z),
+		cf * CF( size.X,  size.Y,  size.Z),
+		cf * CF(-size.X, -size.Y,  size.Z),
+		cf * CF( size.X, -size.Y,  size.Z)
+	}
+
+	for i, quad in ipairs({{1,2,4,3}, {5,6,8,7}, {2,6,8,4}, {1,5,7,3}, {1,2,6,5}, {3,4,8,7}}) do
+		local q, visible = chamData["Quad" .. i], _G.AirChams.Enabled
+		for j = 1, 4 do
+			local screen, onScreen = WorldToScreen(p[quad[j]].Position)
+			q["Point" .. string.char(64 + j)] = screen
+			if not onScreen then visible = false end
+		end
+		q.Visible = visible
+	end
+end
+
+local function RemoveChams(player)
+	local entry = _G.AirChams.Wrapped[player]
+	if not entry then return end
+	if entry.Connection then pcall(entry.Connection.Disconnect, entry.Connection) end
+	for _, quads in pairs(entry) do
+		if typeof(quads) == "table" then
+			for _, q in pairs(quads) do
+				if q.Remove then pcall(q.Remove, q) end
+			end
+		end
+	end
+	_G.AirChams.Wrapped[player] = nil
+end
+
+local function ApplyChams(player)
+	if not _G.AirChams.Enabled or _G.AirChams.Wrapped[player] then return end
+	local character = player.Character or player.CharacterAdded:Wait()
+	local parts = {}
+	if character:FindFirstChild("LowerTorso") then
+		if _G.AirChams.EntireBody then
+			for _, p in ipairs(character:GetChildren()) do
+				if p:IsA("BasePart") then table.insert(parts, p) end
+			end
+		else
+			for _, name in ipairs({ "Head", "UpperTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg" }) do
+				local part = character:FindFirstChild(name)
+				if part then table.insert(parts, part) end
+			end
+		end
+	else
+		for _, name in ipairs({ "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }) do
+			local part = character:FindFirstChild(name)
+			if part then table.insert(parts, part) end
+		end
+	end
+
+	local chamEntry = {}
+	for _, part in ipairs(parts) do
+		local quadSet = {}
+		for i = 1, 6 do
+			local q = NewDrawing("Quad")
+			q.Thickness = _G.AirChams.Thickness
+			q.Filled = _G.AirChams.Filled
+			q.Transparency = _G.AirChams.Transparency
+			q.Color = _G.AirChams.Color
+			q.Visible = false
+			quadSet["Quad" .. i] = q
+		end
+		chamEntry[part] = quadSet
+	end
+
+	chamEntry.Connection = RunService.RenderStepped:Connect(function()
+		local char = player.Character
+		if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
+			RemoveChams(player)
+			return
+		end
+		for part, chamData in pairs(chamEntry) do
+			if part:IsDescendantOf(char) then
+				UpdateCham(part, chamData)
+			end
+		end
+	end)
+
+	_G.AirChams.Wrapped[player] = chamEntry
+end
+
+local function ToggleChams(enabled)
+	_G.AirChams.Enabled = enabled
+	if enabled then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer then ApplyChams(plr) end
+		end
+	else
+		for plr in pairs(_G.AirChams.Wrapped) do
+			RemoveChams(plr)
+		end
+	end
+end
+
+Players.PlayerAdded:Connect(function(p)
+	if p ~= LocalPlayer and _G.AirChams.Enabled then ApplyChams(p) end
+end)
+
+Players.PlayerRemoving:Connect(RemoveChams)
+
+LeftGroupBox:AddToggle("AirChamsToggle", {
+	Text = "Player Chams",
+	Default = false,
+	Callback = ToggleChams
+})
+
+LeftGroupBox:AddToggle("GunRainbow", {
+    Text = "Rainbow Gun",
+    Callback = function(enabled)
+        if enabled then
+
+            local hueSpeed = 0.5
+            local rainbowConnections = {}
+
+            local function getRainbowColor(hueShift)
+                return Color3.fromHSV((tick() * hueShift % 5) / 5, 1, 1)
+            end
+
+            local function cleanPart(part)
+                for _, child in ipairs(part:GetChildren()) do
+                    if child:IsA("SurfaceAppearance") then
+                        child:Destroy()
+                    elseif child:IsA("SpecialMesh") then
+                        child.TextureId = ""
+                    end
+                end
+                if part:IsA("MeshPart") then
+                    part.TextureID = ""
+                end
+                part.Material = Enum.Material.Plastic
+            end
+
+            local function getAllParts(model)
+                local parts = {}
+                for _, descendant in ipairs(model:GetDescendants()) do
+                    if descendant:IsA("BasePart") then
+                        table.insert(parts, descendant)
+                    end
+                end
+                return parts
+            end
+
+            local function applyRainbow(gun)
+                for _, conn in ipairs(rainbowConnections) do
+                    conn:Disconnect()
+                end
+                table.clear(rainbowConnections)
+
+                if not gun then return end
+
+                local gunParts = getAllParts(gun)
+                for _, part in ipairs(gunParts) do
+                    cleanPart(part)
+                end
+
+                local conn = RunService.RenderStepped:Connect(function()
+                    local color = getRainbowColor(hueSpeed)
+                    for _, part in ipairs(gunParts) do
+                        if part:IsA("BasePart") and part:IsDescendantOf(gun) then
+                            part.Color = color
+                        end
+                    end
+                end)
+
+                table.insert(rainbowConnections, conn)
+            end
+
+            local function onToolEquipped(tool)
+                local handle = tool:WaitForChild("Handle", 3)
+                local gunModel = handle and handle.Parent
+                if gunModel and gunModel:IsDescendantOf(workspace) then
+                    applyRainbow(gunModel)
+                end
+            end
+
+            LocalPlayer.CharacterAdded:Connect(function(char)
+                Character = char
+            end)
+
+            LocalPlayer.Character.ChildAdded:Connect(function(child)
+                if child:IsA("Tool") then
+                    onToolEquipped(child)
+                end
+            end)
+
+            local tool = Character:FindFirstChildOfClass("Tool")
+            if tool then
+                onToolEquipped(tool)
+            end
+
+            getgenv()._RainbowGunDisconnect = function()
+                for _, conn in ipairs(rainbowConnections) do
+                    conn:Disconnect()
+                end
+                table.clear(rainbowConnections)
+            end
+        else
+            if getgenv()._RainbowGunDisconnect then
+                getgenv()._RainbowGunDisconnect()
+            end
+        end
+    end
+})
+
+local RightGroupBox = Tabs.combat:AddLeftGroupbox("Silent Aim")
+
+Gc = getgc()
+
+SilentAim = false
+SilentAimPart = "HumanoidRootPart"
+SilentAimWallbang = false
+MaxWallbangDistance = 500
+
+FovCircle = Drawing.new("Circle")
+FovCircle.Radius = 150
+FovCircle.NumSides = 128
+FovCircle.Thickness = 1.5
+FovCircle.Visible = false
+FovCircle.Color = Color3.fromRGB(255,255,255)
+
+game:GetService("RunService").RenderStepped:Connect(function()
+	FovCircle.Position = UserInputService:GetMouseLocation()
+	FovCircle.Visible = SilentAim
+end)
+
+local function SearchGc(FunctionName)
+	for i,v in pairs(Gc) do
+		if type(v) == "function" then
+			local info = debug.getinfo(v)
+			if info.name == FunctionName then
+				return v
+			end
+		end
+	end
+end
+
+function GetFovTarget(Circle, HitPart)
+	local Target
+	local LowestDistance = math.huge
+
+	for i,v in pairs(Players:GetPlayers()) do
+		local Char = v.Character
+		if v ~= Player and Char then
+			local Part = Char:FindFirstChild(HitPart)
+			local Humanoid = Char:FindFirstChild("Humanoid")
+
+			if Part and Humanoid and Humanoid.Health > 0 then
+				local ScreenPos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
+				local Distance = (Circle.Position - Vector2.new(ScreenPos.X, ScreenPos.Y)).Magnitude
+
+				if Distance < Circle.Radius and Distance < LowestDistance and OnScreen then
+					Target = v
+					LowestDistance = Distance
+				end
+			end
+		end
+	end
+
+	return Target
+end
+
+RightGroupBox:AddToggle("MyToggle", {
+	Text = "Silent aim",
+	Callback = function(value)
+		SilentAim = value
+	end,
+})
+
+RightGroupBox:AddToggle("MyToggle", {
+	Text = "Wallbang",
+	Callback = function(value)
+		SilentAimWallbang = value
+	end,
+})
+
+RightGroupBox:AddSlider("FovSlider", {
+	Text = "FOV Radius",
+	Min = 10,
+	Max = 1000,
+	Default = 150,
+	Rounding = 0,
+	Callback = function(value)
+		FovCircle.Radius = value
+	end,
+})
+
+RightGroupBox:AddSlider("WallbangDist", {
+	Text = "Wallbang Distance",
+	Min = 10,
+	Max = 5000,
+	Default = 500,
+	Rounding = 0,
+	Callback = function(value)
+		MaxWallbangDistance = value
+	end,
+})
+
+RightGroupBox:AddDropdown("SilentAimPart", {
+	Text = "Target Part",
+	Values = { "Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso" },
+	Default = 3,
+	Multi = false,
+	Callback = function(part)
+		SilentAimPart = part
+	end,
+})
+
+CastBlacklist = SearchGc("CastBlacklist")
+CastWhitelist = SearchGc("CastWhitelist")
+
+if not CastBlacklist or not CastWhitelist then
+	Player:Kick("Missing Function, Error code: #1")
+	return
+end
+
+OldCastBlacklist = hookfunction(CastBlacklist, function(...)
+	local Target = GetFovTarget(FovCircle, SilentAimPart)
+
+	if Target and SilentAim then
+		local args = { ... }
+		local part = Target.Character and Target.Character:FindFirstChild(SilentAimPart)
+
+		if part then
+			args[2] = part.Position - args[1]
+
+			if SilentAimWallbang then
+				if (args[2].Magnitude <= MaxWallbangDistance) then
+					args[3] = { Target.Character }
+					return CastWhitelist(unpack(args))
+				end
+			end
+
+			return OldCastBlacklist(unpack(args))
+		end
+	end
+
+	return OldCastBlacklist(...)
+end)
+
+local LeftGroupBox = Tabs.farms:AddLeftGroupbox("Auto Farms")
+
+local batchCount = 1
+LeftGroupBox:AddSlider("MarshBatchCount", {
+	Text = "Batch Amount",
+	Min = 1,
+	Max = 50,
+	Default = 1,
+	Rounding = 0,
+	Callback = function(value)
+		batchCount = value
+		local totalCost = batchCount * 190
+		Library:Notify(("You will spend $" .. totalCost .. " for " .. batchCount .. " batch" .. (batchCount > 1 and "es" or "")), 5)
+	end
+})
+
+local aptList = {
+	"BH1", "BH2", "BH3", "BH4",
+	"Home 1", "Home 2", "Home 3", "Home 4",
+	"LT1", "WH1"
+}
+
+local marshmallowItems = {
+	"Small Marshmallow Bag",
+	"Medium Marshmallow Bag",
+	"Large Marshmallow Bag"
+}
+
+local function teleportTo(pos)
+	if typeof(_G.teleportTo) == "function" then
+		_G.teleportTo(CFrame.new(pos))
+	else
+		LocalPlayer.Character:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(pos)
+	end
+	task.wait(2)
+end
+
+local function step1_buyIngredients()
+	local storePos = Vector3.new(510, 4, 602)
+	teleportTo(storePos)
+
+	local remote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StorePurchase")
+	local items = { "Water", "Gelatin", "Sugar Block Bag" }
+
+	for _, item in ipairs(items) do
+		for i = 1, batchCount do
+			remote:FireServer(item)
+			task.wait(0.25)
+		end
+	end
+
+	return true
+end
+local function ownsApartment(apt)
+	local board = apt:FindFirstChild("Board")
+	local label = board and board:FindFirstChild("name") and board.name:FindFirstChild("SurfaceGui") and board.name.SurfaceGui:FindFirstChild("TextLabel")
+	return label and label.Text == LocalPlayer.Name
+end
+
+local function isVacant(apt)
+	local board = apt:FindFirstChild("Board")
+	local label = board and board:FindFirstChild("name") and board.name:FindFirstChild("SurfaceGui") and board.name.SurfaceGui:FindFirstChild("TextLabel")
+	return label and label.Text == "VACANT"
+end
+
+local function lockDoorIfNeeded(apt)
+	local door = apt:FindFirstChild("Door")
+	if not door then return false end
+
+	local hinge = door:FindFirstChild("Hinge")
+	local lockPart = door:FindFirstChild("DoorLock") and door.DoorLock:FindFirstChild("Part")
+	local interactPrompt = door:FindFirstChild("Interact") and door.Interact:FindFirstChild("Attachment") and door.Interact.Attachment:FindFirstChild("ProximityPrompt")
+	local lockPrompt = lockPart and lockPart:FindFirstChild("ProximityPrompt")
+
+	if not (hinge and lockPart and interactPrompt and lockPrompt) then
+		return false
+	end
+
+	local function isClosed()
+		return math.abs(hinge.Orientation.Y) < 5
+	end
+
+	local function isLocked()
+		local rot = lockPart.Orientation
+		return math.floor(rot.X + 0.5) == 90 and math.floor(rot.Y + 0.5) == 0
+	end
+
+	local function isUnlocked()
+		local rot = lockPart.Orientation
+		return math.floor(rot.X + 0.5) == 0 and math.floor(rot.Y + 0.5) == -90
+	end
+
+	if isClosed() and isLocked() then
+		return true
+	end
+
+	teleportTo(lockPart.Position + Vector3.new(0, 3, 0))
+
+	if not isClosed() then
+		fireproximityprompt(interactPrompt)
+		task.wait(2)
+	end
+
+	if isUnlocked() then
+		fireproximityprompt(lockPrompt)
+		task.wait(2)
+	end
+
+	if isClosed() and isLocked() then
+		return true
+	else
+		return false
+	end
+end
+
+local currentCookingPrompt = nil
+
+local function step2_ensureApartmentAndSecure()
+	local APTS = Workspace.Map:FindFirstChild("APTS")
+	local HOUSES = Workspace.Map:FindFirstChild("Houses")
+	if not APTS or not HOUSES then
+		return false
+	end
+
+	local selectedApt = nil
+	for _, aptName in ipairs(aptList) do
+		local apt = APTS:FindFirstChild(aptName)
+		if apt and apt:IsA("Model") then
+			if ownsApartment(apt) then
+				selectedApt = apt
+				break
+			elseif not selectedApt and isVacant(apt) then
+				selectedApt = apt
+			end
+		end
+	end
+
+	if not selectedApt then
+		return false
+	end
+
+	local board = selectedApt:FindFirstChild("Board")
+	if board then
+		teleportTo(board:GetPivot().Position + Vector3.new(0, 2, 0))
+	end
+
+	if isVacant(selectedApt) then
+		local prompt = board and board:FindFirstChild("backboard") and board.backboard:FindFirstChild("ProximityPrompt")
+		if prompt then
+			fireproximityprompt(prompt)
+			task.wait(2)
+		else
+			return false
+		end
+	end
+
+	if not lockDoorIfNeeded(selectedApt) then return false end
+
+	local houseModel = HOUSES:FindFirstChild(selectedApt.Name)
+	local interior = houseModel and houseModel:FindFirstChild("Interior")
+	if not interior then return false end
+
+	for _, obj in ipairs(interior:GetChildren()) do
+		if obj:IsA("MeshPart") and obj:FindFirstChild("Attachment") then
+			local prompt = obj.Attachment:FindFirstChild("ProximityPrompt")
+			if prompt then
+				currentCookingPrompt = prompt
+				teleportTo(obj.Position - Vector3.new(0, 7, 0))
+				task.wait(2)
+				fireproximityprompt(prompt)
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+local function equipTool(toolName)
+	local backpack = LocalPlayer:WaitForChild("Backpack")
+	local tool = backpack:FindFirstChild(toolName)
+	if tool then
+		local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid:EquipTool(tool)
+			task.wait(0.25)
+		end
+	end
+end
+local function sellCookedItems(count)
+	teleportTo(Vector3.new(509, 4, 597))
+	task.wait(2)
+
+	local lamont = workspace:FindFirstChild("NPCs") and workspace.NPCs:FindFirstChild("Lamont Bell")
+	local prompt = lamont and lamont:FindFirstChild("UpperTorso") and lamont.UpperTorso:FindFirstChild("ProximityPrompt")
+
+	if not prompt then
+		return
+	end
+
+	for i = 1, count do
+		local equippedBag = nil
+
+		for attempt = 1, 50 do
+			for _, name in ipairs(marshmallowItems) do
+				local tool = LocalPlayer.Backpack:FindFirstChild(name)
+				if tool then
+					equipTool(name)
+					equippedBag = name
+					break
+				end
+			end
+
+			if equippedBag and LocalPlayer.Character:FindFirstChild(equippedBag) then
+				break
+			end
+
+			task.wait(0.1)
+		end
+
+		if not (equippedBag and LocalPlayer.Character:FindFirstChild(equippedBag)) then
+			continue
+		end
+		fireproximityprompt(prompt)
+		task.wait(1)
+	end
+
+end
+
+LeftGroupBox:AddToggle("AutoMarshFarm", {
+	Text = "Marsh Farm",
+	Default = false,
+	Callback = function(state)
+		if state then
+			task.spawn(function()
+				if not step1_buyIngredients() then return end
+				if not step2_ensureApartmentAndSecure() then return end
+
+				for i = 1, batchCount do
+					local steps = {
+						{ tool = "Water", wait = 22 },
+						{ tool = "Sugar Block Bag", wait = 2 },
+						{ tool = "Gelatin", wait = 46 },
+						{ tool = "Empty Bag", wait = 2 },
+					}
+
+					for _, step in ipairs(steps) do
+						equipTool(step.tool)
+						fireproximityprompt(currentCookingPrompt)
+						task.wait(step.wait)
+					end
+				end
+
+				sellCookedItems(batchCount)
+			end)
+		end
+	end
+})
+
+local farming = false
+local farmThread
+
+LeftGroupBox:AddToggle("MyToggle", {
+	Text = "(Old) Marsh Farm",
+	Callback = function(Value)
+		farming = Value
+
+		if farming then
+			farmThread = task.spawn(function()
+				local character = player.Character or player.CharacterAdded:Wait()
+
+			
+				local function equipTool(toolName)
+					local backpack = player.Backpack
+					local tool = backpack:FindFirstChild(toolName)
+					if tool then
+						humanoid:EquipTool(tool)
+					end
+				end
+
+				local function performAction(action)
+					if not farming then return end 
+
+					if action.tool then
+						equipTool(action.tool)
+					end
+
+					if action.holdE then
+						virtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+						task.wait(action.holdTime)
+						virtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+					end
+
+					task.wait(action.waitTime)
+				end
+
+				local actions = {
+					{tool = "Water", holdE = true, holdTime = 0, waitTime = 22},
+					{tool = "Sugar Block Bag", holdE = true, holdTime = 0, waitTime = 2},
+					{tool = "Gelatin", holdE = true, holdTime = 0, waitTime = 46},
+					{tool = "Empty Bag", holdE = true, holdTime = 0, waitTime = 2},
+				}
+
+				while farming do
+					for _, action in ipairs(actions) do
+						if not farming then break end
+						performAction(action)
+					end
+				end
+			end)
+		else
+			farming = false
+			if farmThread then
+				task.cancel(farmThread)
+			end
+		end
+	end,
+})
+local GuiService = game:GetService("GuiService")
+LeftGroupBox:AddToggle("AutoCardFarm", {
+	Text = "Card Farm",
+	Default = false,
+	Callback = function(state)
+		getgenv().AutoFarm = state
+		if state then
+			task.spawn(function()
+				local cloneref = cloneref or function(...) return ... end
+				local plrs = cloneref(game:GetService("Players"))
+				local lp = plrs.LocalPlayer
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+lp.CharacterAdded:Connect(function(char)
+	repeat task.wait() until char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart")
+	Character = char
+	Humanoid = char:FindFirstChild("Humanoid")
+	HumanoidRootPart = char:FindFirstChild("HumanoidRootPart")
+end) 
+
+                local function waitUntilAt(pos, range)
+	range = range or 10
+	for i = 1, 60 do
+		if (HumanoidRootPart.Position - pos).Magnitude <= range then
+			return true
+		end
+		task.wait(0.1)
+	end
+	return false
+end
+
+                
+				local function pressKeys(keys)
+					for _, key in ipairs(keys) do
+						VirtualInputManager:SendKeyEvent(true, key, false, game)
+					end
+				end
+
+				local function releaseKeys(keys)
+					for _, key in ipairs(keys) do
+						VirtualInputManager:SendKeyEvent(false, key, false, game)
+					end
+				end
+
+				local movePattern = {
+					{Enum.KeyCode.W, Enum.KeyCode.A},
+					{Enum.KeyCode.A},
+					{Enum.KeyCode.S, Enum.KeyCode.A},
+					{Enum.KeyCode.S},
+					{Enum.KeyCode.S, Enum.KeyCode.D},
+					{Enum.KeyCode.D},
+					{Enum.KeyCode.W, Enum.KeyCode.D},
+					{Enum.KeyCode.W},
+				}
+
+				local function moveInCircleOnce()
+					for _, keyCombo in ipairs(movePattern) do
+						pressKeys(keyCombo)
+						task.wait(0.2)
+						releaseKeys(keyCombo)
+						task.wait(0.02)
+					end
+				end
+
+				local function spamProximityPrompt(prompt, duration)
+					local startTime = tick()
+					while tick() - startTime < duration and getgenv().AutoFarm do
+						fireproximityprompt(prompt)
+						task.wait(0.1)
+					end
+				end
+
+				local function hasTool(toolName)
+					local backpack = lp:WaitForChild("Backpack")
+					return backpack:FindFirstChild(toolName) or Character:FindFirstChild(toolName)
+				end
+
+				local function equipTool(toolName)
+					local backpack = lp:WaitForChild("Backpack")
+					local tool = backpack:FindFirstChild(toolName) or Character:FindFirstChild(toolName)
+					if tool and tool.Parent == backpack then
+						tool.Parent = Character
+					end
+				end
+
+				local function atmSafeMove()
+					for _, key in ipairs({Enum.KeyCode.W, Enum.KeyCode.S, Enum.KeyCode.A, Enum.KeyCode.D}) do
+						VirtualInputManager:SendKeyEvent(true, key, false, game)
+						task.wait(0.1)
+						VirtualInputManager:SendKeyEvent(false, key, false, game)
+						task.wait(0.1)
+					end
+				end
+
+				local function safeSwipeATM()
+					local atmGUI = lp.PlayerGui:FindFirstChild("ATM")
+					if atmGUI then
+						local atmFrame = atmGUI:FindFirstChild("Frame")
+						local button = atmFrame and atmFrame:FindFirstChild("Swipe")
+						if button and button:IsA("TextButton") then
+							GuiService.SelectedObject = button
+							task.wait(0.6)
+							VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+							task.wait(0.9)
+							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+							task.wait(1.2)
+							VirtualInputManager:SendMouseButtonEvent(math.random(100, 500), math.random(100, 500), 0, true, game, 0)
+							task.wait(0.05)
+							VirtualInputManager:SendMouseButtonEvent(math.random(100, 500), math.random(100, 500), 0, false, game, 0)
+						end
+					end
+				end
+
+				while getgenv().AutoFarm do
+                    if not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart") then
+	repeat task.wait(1) until lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	Character = lp.Character
+	Humanoid = Character:WaitForChild("Humanoid")
+	HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+end
+					local pos = Vector3.new(217, 4, -332) + Vector3.new(math.random(), 0, math.random())
+teleportTo(pos)
+waitUntilAt(pos)
+
+                    
+					task.wait(5)
+					moveInCircleOnce()
+					local fakeIDSeller = Workspace:WaitForChild("NPCs"):FindFirstChild("FakeIDSeller")
+					if fakeIDSeller then
+						local prompt = fakeIDSeller:FindFirstChild("UpperTorso") and fakeIDSeller.UpperTorso:FindFirstChild("Attachment") and fakeIDSeller.UpperTorso.Attachment:FindFirstChild("ProximityPrompt")
+						if prompt then
+							while not hasTool("Fake ID") and getgenv().AutoFarm do
+								spamProximityPrompt(prompt, 3)
+								task.wait(1)
+							end
+						end
+					end
+
+					local pos = Vector3.new(-50, 4, -321) + Vector3.new(math.random(), 0, math.random())
+teleportTo(pos)
+waitUntilAt(pos)
+					task.wait(5)
+					moveInCircleOnce()
+					equipTool("Fake ID")
+					task.wait(1)
+					local bankTeller = Workspace:WaitForChild("NPCs"):FindFirstChild("Bank Teller")
+					if bankTeller then
+						local prompt = bankTeller:FindFirstChild("UpperTorso") and bankTeller.UpperTorso:FindFirstChild("Attachment") and bankTeller.UpperTorso.Attachment:FindFirstChild("ProximityPrompt")
+						if prompt then
+							spamProximityPrompt(prompt, 3)
+						end
+					end
+
+					task.wait(40)
+
+                    local pos = Vector3.new(-42, 4, -334) + Vector3.new(math.random(), 0, math.random())
+teleportTo(pos)
+waitUntilAt(pos)
+
+					task.wait(5)
+					moveInCircleOnce()
+					local blank = Workspace:FindFirstChild("Blank")
+					if blank then
+						local prompt = blank:FindFirstChild("Attachment") and blank.Attachment:FindFirstChild("ProximityPrompt")
+						if prompt then
+							spamProximityPrompt(prompt, 3)
+						end
+					end
+					if not hasTool("Card") then break end
+
+					local atm = nil
+					for _, v in pairs(Workspace.Map.ATMS:GetChildren()) do
+						if v:FindFirstChild("ATMScreen") and v.ATMScreen.Transparency == 0 then
+							atm = v
+							break
+						end
+					end
+
+					if atm then
+    local pos = (atm.Position + atm.CFrame.LookVector * -3) + Vector3.new(math.random(), 0, math.random())
+    teleportTo(pos)
+    waitUntilAt(pos)
+
+    equipTool("Card")
+    task.wait(2)
+    atmSafeMove()
+    task.wait(2)
+
+    local prompt = atm:FindFirstChild("Attachment") and atm.Attachment:FindFirstChild("ProximityPrompt")
+    if prompt then
+        spamProximityPrompt(prompt, 2.5)
+    end
+
+    task.wait(2)
+    safeSwipeATM()
+end
+					while getgenv().AutoFarm do
+						if not hasTool("Card") then break end
+						task.wait(1.5)
+					end
+				end
+			end)
+		end
+	end
+})
+
+local chipFarm_player = Players.LocalPlayer
+local chipFarm_camera = Workspace.CurrentCamera
+local chipFarm_character = chipFarm_player.Character or chipFarm_player.CharacterAdded:Wait()
+local chipFarm_hrp = chipFarm_character:WaitForChild("HumanoidRootPart")
+local chipFarm_humanoid = chipFarm_character:WaitForChild("Humanoid")
+
+local chipFarm_state = false
+local chipFarm_currentTween
+
+local chipFarm_buyLocation = { pos = Vector3.new(-772, 4, -198), forceTeleport = true }
+local chipFarm_startJobLocation = { pos = Vector3.new(-484, 4, -429), forceTeleport = true }
+
+local chipFarm_prepSteps = {
+	{ pos = Vector3.new(-478, 4, -434), tool = "", interact = true, wait = 2 },
+	{ pos = Vector3.new(-462, 4, -445), tool = "Potato", interact = true, wait = 3 },
+	{ pos = Vector3.new(-462, 4, -473), tool = "", interact = true, wait = 3 },
+	{ pos = Vector3.new(-463, 4, -521), tool = "Flour", interact = true, wait = 2 },
+	{ pos = Vector3.new(-520, 4, -448), tool = "", interact = true, wait = 61 },
+	{ pos = Vector3.new(-520, 4, -448), tool = "", interact = true, wait = 1 },
+}
+
+local function chipFarm_teleportTo(pos)
+	if typeof(_G.teleportTo) == "function" then
+		_G.teleportTo(CFrame.new(pos))
+	else
+		chipFarm_hrp.CFrame = CFrame.new(pos)
+	end
+end
+
+local function chipFarm_tweenTo(pos)
+	local distance = (chipFarm_hrp.Position - pos).Magnitude
+	local time = distance / 17
+	local tweenInfo = TweenInfo.new(time, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+	local goal = { CFrame = CFrame.new(pos) }
+
+	if chipFarm_currentTween then chipFarm_currentTween:Cancel() end
+	chipFarm_currentTween = TweenService:Create(chipFarm_hrp, tweenInfo, goal)
+
+	local done = false
+	chipFarm_currentTween.Completed:Connect(function(p)
+		if p == Enum.PlaybackState.Completed then done = true end
+	end)
+
+	chipFarm_currentTween:Play()
+	while not done and chipFarm_state do RunService.Heartbeat:Wait() end
+end
+
+local function chipFarm_pressE()
+	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+end
+
+local function chipFarm_releaseE()
+	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+end
+
+local function chipFarm_face(target)
+	local lookAt = typeof(target) == "Instance" and target.Position or target
+	chipFarm_hrp.CFrame = CFrame.new(chipFarm_hrp.Position, lookAt)
+end
+
+local function chipFarm_firePromptAt(part)
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if prompt then
+		chipFarm_face(part)
+		wait(0.2)
+		chipFarm_pressE()
+		wait(prompt.HoldDuration or 1)
+		chipFarm_releaseE()
+	end
+end
+
+local function chipFarm_equipTool(name)
+	local tool = chipFarm_player.Backpack:FindFirstChild(name)
+	if tool then tool.Parent = chipFarm_character end
+end
+
+local function chipFarm_waitForTool(name, timeout)
+	local t = tick() + timeout
+	while tick() < t do
+		if chipFarm_player.Backpack:FindFirstChild(name) or chipFarm_character:FindFirstChild(name) then
+			return true
+		end
+		RunService.Heartbeat:Wait()
+	end
+	return false
+end
+
+local function chipFarm_isSitting(homeless)
+	local hrp = homeless:FindFirstChild("HumanoidRootPart")
+	if not hrp then return false end
+
+	local _, y, _ = hrp.CFrame:ToEulerAnglesYXZ()
+	local degY = math.deg(y)
+
+	return math.abs(math.abs(degY) - 90) < 5
+end
+
+local function chipFarm_perform(location)
+	if not chipFarm_state then return end
+	chipFarm_camera.CFrame = CFrame.new(chipFarm_hrp.Position + Vector3.new(0, 20, 0), chipFarm_hrp.Position)
+
+	if location.forceTeleport then
+		chipFarm_teleportTo(location.pos)
+	else
+		chipFarm_tweenTo(location.pos)
+	end
+
+	if location.tool then
+		chipFarm_equipTool(location.tool)
+	end
+
+	if location.interact then
+		local box = Workspace:GetPartBoundsInBox(CFrame.new(location.pos), Vector3.new(4, 4, 4))
+		for _, part in ipairs(box) do
+			if part:FindFirstChildOfClass("ProximityPrompt") then
+				chipFarm_firePromptAt(part)
+				break
+			end
+		end
+	end
+
+	if location.wait then wait(location.wait) end
+end
+
+local function chipFarm_convertPotatoToHot()
+	local folder = ReplicatedStorage:FindFirstChild("Workspace")
+		and ReplicatedStorage.Workspace:FindFirstChild("NPCs")
+	if not folder then return end
+
+	local replica = folder:FindFirstChild("Poor Guy")
+	if not replica or not replica:FindFirstChild("HumanoidRootPart") then return end
+
+	chipFarm_teleportTo(replica.HumanoidRootPart.Position + Vector3.new(0, 0, 5))
+	wait(0.5)
+
+	local live = nil
+	for i = 1, 50 do
+		local wfolder = Workspace:FindFirstChild("NPCs")
+		if wfolder then
+			live = wfolder:FindFirstChild("Poor Guy")
+			if live then break end
+		end
+		RunService.Heartbeat:Wait()
+	end
+
+	if live and live:FindFirstChild("UpperTorso") then
+	chipFarm_teleportTo(live.UpperTorso.Position)
+	wait(0.5)
+	chipFarm_equipTool("Potato Chips")
+	chipFarm_firePromptAt(live.UpperTorso)
+
+	chipFarm_waitForTool("Hot Chips", 6)
+end
+end
+
+local function chipFarm_sellHotChipToHomeless()
+	local homelessFolder = ReplicatedStorage:FindFirstChild("Workspace") and ReplicatedStorage.Workspace:FindFirstChild("Homeless")
+	if not homelessFolder then return end
+
+	local target = nil
+	for _, h in ipairs(homelessFolder:GetChildren()) do
+		if h:IsA("Model") and chipFarm_isSitting(h) and h:FindFirstChild("HumanoidRootPart") then
+			target = h
+			break
+		end
+	end
+
+	if not target then return end
+
+	chipFarm_teleportTo(target.HumanoidRootPart.Position + Vector3.new(0, 0, 5))
+
+	local liveHomeless = nil
+	for i = 1, 50 do
+		liveHomeless = Workspace:FindFirstChild("HomelessPeople") and Workspace.HomelessPeople:FindFirstChild(target.Name)
+		if liveHomeless then break end
+		RunService.Heartbeat:Wait()
+	end
+
+	if not liveHomeless or not liveHomeless:FindFirstChild("UpperTorso") then return end
+
+	chipFarm_teleportTo(liveHomeless.UpperTorso.Position)
+	wait(0.5)
+	chipFarm_equipTool("Hot Chips")
+	chipFarm_firePromptAt(liveHomeless.UpperTorso)
+	wait(1)
+end
+
+LeftGroupBox:AddToggle("ChipFarmToggle", {
+	Text = "Chip Farm",
+	Callback = function(toggle)
+		chipFarm_state = toggle
+		if not chipFarm_state and chipFarm_currentTween then chipFarm_currentTween:Cancel() end
+
+		if chipFarm_state then
+			coroutine.wrap(function()
+				while chipFarm_state do
+					chipFarm_perform(chipFarm_buyLocation)
+					wait(0.25)
+
+					local chipFarm_storeRemote = ReplicatedStorage:FindFirstChild("RemoteEvents") and ReplicatedStorage.RemoteEvents:FindFirstChild("StorePurchase")
+					if chipFarm_storeRemote then
+						chipFarm_storeRemote:FireServer("Flour")
+						chipFarm_storeRemote:FireServer("Potato")
+					end
+
+					wait(0.5)
+
+					chipFarm_teleportTo(Vector3.new(-479, 4, -436))
+					wait(0.5)
+
+					local clipboardPrompt = workspace.Map.Locations["The Laboratory"]
+						:FindFirstChild("Prompts") and workspace.Map.Locations["The Laboratory"].Prompts:FindFirstChild("Clipboard")
+						and workspace.Map.Locations["The Laboratory"].Prompts.Clipboard:FindFirstChildOfClass("ProximityPrompt")
+
+					if clipboardPrompt then
+						chipFarm_face(clipboardPrompt.Parent)
+						wait(0.2)
+						chipFarm_pressE()
+						wait(clipboardPrompt.HoldDuration or 1)
+						chipFarm_releaseE()
+					end
+
+					wait(1)
+
+					for _, step in ipairs(chipFarm_prepSteps) do
+						chipFarm_perform(step)
+					end
+
+					if chipFarm_waitForTool("Potato Chips", 6) then
+						chipFarm_convertPotatoToHot()
+					end
+
+					if chipFarm_waitForTool("Hot Chips", 6) then
+						chipFarm_sellHotChipToHomeless()
+
+						local timeout = tick() + 6
+						while tick() < timeout do
+							if not chipFarm_player.Backpack:FindFirstChild("Hot Chips")
+								and not chipFarm_character:FindFirstChild("Hot Chips") then
+								break
+							end
+							RunService.Heartbeat:Wait()
+						end
+					end
+
+					wait(1)
+				end
+			end)()
+		end
+	end,
+})
+
+local CrateFarmRunning = false
+local FARM_THREAD = nil
+local JobAlreadyStarted = false
+
+LeftGroupBox:AddToggle("CrateFarmToggle", {
+	Text = "Crate Farm",
+	Callback = function(enabled)
+		CrateFarmRunning = enabled
+
+		if FARM_THREAD then
+			FARM_THREAD:Disconnect()
+			FARM_THREAD = nil
+		end
+
+		local function refreshCharacter()
+			local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+			return char, char:WaitForChild("Humanoid"), char:WaitForChild("HumanoidRootPart"), LocalPlayer:WaitForChild("Backpack")
+		end
+
+		local function homelessFastTp(pos, retries)
+			retries = retries or 2
+			local HomelessStorage = ReplicatedStorage:WaitForChild("Workspace"):WaitForChild("Homeless")
+			local HomelessLive = Workspace:WaitForChild("HomelessPeople")
+
+			for attempt = 1, retries do
+				if not CrateFarmRunning then return false end
+				local Character, Humanoid, HRP = refreshCharacter()
+
+				local closest, dist = nil, math.huge
+				for _, h in ipairs(HomelessStorage:GetChildren()) do
+					if h:IsA("Model") and h:FindFirstChild("HumanoidRootPart") then
+						local d = (HRP.Position - h.HumanoidRootPart.Position).Magnitude
+						if d < dist then
+							closest = h
+							dist = d
+						end
+					end
+				end
+				if not closest then return false end
+
+				local targetHRP = closest.HumanoidRootPart.Position
+				local liveHomeless
+				local timeout = os.clock() + 10
+
+				while not liveHomeless and os.clock() < timeout and CrateFarmRunning do
+					Character:PivotTo(CFrame.new(targetHRP))
+					Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+					task.wait(0.01)
+					liveHomeless = HomelessLive:FindFirstChild(closest.Name)
+				end
+				if not liveHomeless then continue end
+
+				local prompt = liveHomeless:FindFirstChild("UpperTorso") and liveHomeless.UpperTorso:FindFirstChild("ProximityPrompt")
+				if not prompt then continue end
+
+				local healthTimeout = os.clock() + 15
+				while (Humanoid.Health / Humanoid.MaxHealth) > 0.17 and os.clock() < healthTimeout and CrateFarmRunning do
+					Character:PivotTo(CFrame.new(liveHomeless.UpperTorso.Position))
+					Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+					fireproximityprompt(prompt)
+					task.wait(0.01)
+				end
+
+				task.wait(1.5)
+				Character:PivotTo(CFrame.new(pos))
+				task.wait(2)
+				return true
+			end
+			return false
+		end
+
+		if not enabled then
+			task.spawn(function()
+				local endPos = Vector3.new(-576, 3, -73)
+				showBlackScreen()
+				if homelessFastTp(endPos + Vector3.new(0, 2, 0), 2) then
+					task.wait(2.5)
+					for _ = 1, 50 do
+						local npc = Workspace:FindFirstChild("NPCs") and Workspace.NPCs:FindFirstChild("Darrian Johnson")
+						if npc and npc:FindFirstChild("UpperTorso") then
+							fireproximityprompt(npc.UpperTorso:FindFirstChildOfClass("ProximityPrompt"))
+							break
+						end
+						task.wait(0.5)
+					end
+				end
+				JobAlreadyStarted = false
+			end)
+			return
+		end
+
+		FARM_THREAD = task.spawn(function()
+			local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+			local FIRST_PROMPT = Workspace.PlaceHere.Attachment.ProximityPrompt
+			local SECOND_PROMPT = Workspace.cratetruck2.Model.ClickBox.Attachment.ProximityPrompt
+
+			local POS = {
+				Start = Vector3.new(-551, 4, -86),
+				WalkOut = Vector3.new(-528, 3, -82),
+				Mid = Vector3.new(-402, 3, -84),
+				Truck = Vector3.new(-401, 3, -71),
+				JobStart = Vector3.new(-576, 3, -73),
+			}
+
+			local function triggerPromptAndStartJob()
+				for _ = 1, 3 do
+					showBlackScreen()
+					if not homelessFastTp(POS.JobStart + Vector3.new(0, 2, 0), 2) then continue end
+					task.wait(1)
+
+					for _ = 1, 50 do
+						local npc = Workspace:FindFirstChild("NPCs") and Workspace.NPCs:FindFirstChild("Darrian Johnson")
+						if npc and npc:FindFirstChild("UpperTorso") then
+							local prompt = npc.UpperTorso:FindFirstChildOfClass("ProximityPrompt")
+							if prompt then
+								fireproximityprompt(prompt)
+								task.wait(prompt.HoldDuration + 0.2)
+
+								for _ = 1, 100 do
+									for _, gui in ipairs(PlayerGui:GetChildren()) do
+										if gui:IsA("ScreenGui") and gui.Enabled then
+											for _, d in ipairs(gui:GetDescendants()) do
+												if d:IsA("TextButton") and d.Visible and d.Text:lower():find("looking for work") then
+													GuiService.SelectedObject = d
+													task.wait(0.6)
+													VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+													task.wait(0.9)
+													VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+													task.wait(1.2)
+													VirtualInputManager:SendMouseButtonEvent(math.random(100, 500), math.random(100, 500), 0, true, game, 0)
+													task.wait(0.05)
+													VirtualInputManager:SendMouseButtonEvent(math.random(100, 500), math.random(100, 500), 0, false, game, 0)
+													return true
+												end
+											end
+										end
+									end
+									task.wait(0.1)
+								end
+							end
+						end
+						task.wait(0.2)
+					end
+				end
+				return false
+			end
+
+			local function equipCrateSafe(crateName)
+				local _, _, _, Backpack = refreshCharacter()
+				local Character = LocalPlayer.Character
+				for _ = 1, 5 do
+					local crate = Backpack:FindFirstChild(crateName)
+					if crate then
+						crate.Parent = Character
+						task.wait(0.5)
+						if Character:FindFirstChild(crateName) then return true end
+					end
+					task.wait(0.5)
+				end
+				return false
+			end
+
+			local function waitForCrateToDisappear(crateName)
+				local _, _, _, Backpack = refreshCharacter()
+				local Character = LocalPlayer.Character
+				local timeout = os.clock() + 10
+				while os.clock() < timeout do
+					if not (Backpack:FindFirstChild(crateName) or Character:FindFirstChild(crateName)) then
+						return true
+					end
+					task.wait(0.2)
+				end
+				return false
+			end
+
+			local function walkTo(pos, Humanoid)
+				Humanoid.WalkSpeed = math.random(19, 22)
+				Humanoid:MoveTo(pos)
+				Humanoid.MoveToFinished:Wait(1)
+			end
+
+			local function randomWASDMovement(duration, Humanoid)
+				local endTime = tick() + duration
+				while tick() < endTime and CrateFarmRunning do
+					local dir = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)).Unit
+					if dir.Magnitude > 0 then
+						Humanoid:Move(dir, true)
+					end
+					task.wait(math.random(5, 10) / 10)
+				end
+				Humanoid:Move(Vector3.zero, true)
+			end
+
+			if not JobAlreadyStarted then
+				if triggerPromptAndStartJob() then
+					JobAlreadyStarted = true
+				else
+					return
+				end
+			end
+
+			local function doOneCycle()
+				local Character, Humanoid, _, Backpack = refreshCharacter()
+				showBlackScreen()
+				if not homelessFastTp(POS.Start, 2) then return end
+				task.wait(2)
+				randomWASDMovement(2, Humanoid)
+				fireproximityprompt(FIRST_PROMPT)
+				task.wait(1.5)
+				walkTo(POS.WalkOut, Humanoid)
+				task.wait(1.5)
+
+				showBlackScreen()
+				if not homelessFastTp(POS.Mid, 2) then return end
+				task.wait(2)
+				walkTo(POS.Truck, Humanoid)
+				if not equipCrateSafe("Crate") then return end
+				randomWASDMovement(2, Humanoid)
+				fireproximityprompt(SECOND_PROMPT)
+				waitForCrateToDisappear("Crate")
+				task.wait(1.5)
+			end
+
+			while CrateFarmRunning do
+				pcall(doOneCycle)
+				task.wait(0.5)
+			end
+		end)
+	end
+})
+
+local DropdownGroupBox = Tabs.Tps:AddLeftGroupbox("Instant Tp")
+
+DropdownGroupBox:AddDropdown("TeleportDropdown", {
+	Values = {
+		"Bank",
+		"Marsh Guy",
+		"Farm Aprtm",
+		"Exotic Gun Store",
+		"Black Market",
+		"Fake Id",
+        "Dealer Apt",
+        "Dealer",
+		"Og Gun Store",
+		"Box",
+        "Clothing Store",
+		"YGZ Turf",
+		"OGZ Guns",
+		"OGZ Studio",
+		"DOA Turf",
+
+	},
+	Default = "",
+	Multi = false,
+	MaxVisibleDropdownItems = 16,
+	Text = "Instant Teleport",
+	Callback = function(Value)
+		local destinations = {
+			["Bank"] = Vector3.new(-49, 4, -322),
+			["Marsh Guy"] = Vector3.new(513, 4, 601),
+			["Farm Aprtm"] = Vector3.new(1203, 16, -181),
+			["Exotic Gun Store"] = Vector3.new(1138, 4, 172),
+			["Black Market"] = Vector3.new(76, 10, 29),
+			["Fake Id"] = Vector3.new(219, 4, -335),
+            ["Dealer Apt"] = Vector3.new(716, 3, 547),
+            ["Dealer"] = Vector3.new(730, 6, 433),
+			["Og Gun Store"] = Vector3.new(219, 4, -177),
+			["Box"] = Vector3.new(-555, 4, -81),
+            ["Clothing Store"] = Vector3.new(-201, 5, -68),
+			["DOA Turf"] = Vector3.new(-330, 22, -466),
+			["OGZ Studio"] = Vector3.new(143, 21, -511),
+			["OGZ Guns"] = Vector3.new(103, 24, -506),
+			["YGZ Turf"] = Vector3.new(1, 19, 293),
+		}
+
+		local targetDestination = destinations[Value]
+        if not targetDestination then return end
+
+        local HomelessStorage = ReplicatedStorage:WaitForChild("Workspace"):WaitForChild("Homeless")
+        local HomelessLive = Workspace:WaitForChild("HomelessPeople")
+
+        local TARGET_HEALTH_PERCENT = 0.17
+        local TELEPORT_TOLERANCE = 10
+        local TELEPORT_MAX_ATTEMPTS = 5
+
+        local function getDistance(pos1, pos2)
+            return (pos1 - pos2).Magnitude
+        end
+
+        local function isAtPosition(targetPosition)
+            return getDistance(HRP.Position, targetPosition) <= TELEPORT_TOLERANCE
+        end
+
+        local function safeTeleport(targetPosition)
+            for _ = 1, TELEPORT_MAX_ATTEMPTS do
+                Character:PivotTo(CFrame.new(targetPosition))
+                task.wait(0.05)
+                Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                if isAtPosition(targetPosition) then return true end
+                task.wait(0.2)
+            end
+            return false
+        end
+
+        local function findClosestHiddenHomeless()
+            local closest, closestDist = nil, math.huge
+            for _, homeless in ipairs(HomelessStorage:GetChildren()) do
+                if homeless:IsA("Model") and homeless:FindFirstChild("HumanoidRootPart") then
+                    local dist = getDistance(HRP.Position, homeless.HumanoidRootPart.Position)
+                    if dist < closestDist then
+                        closest = homeless
+                        closestDist = dist
+                    end
+                end
+            end
+            return closest
+        end
+
+        local function homelessFastTp(finalTargetPosition)
+            local hiddenHomeless = findClosestHiddenHomeless()
+            if not hiddenHomeless then return print("âŒ No hidden homeless found!") end
+
+            local hiddenPos = hiddenHomeless.HumanoidRootPart.Position
+            if not safeTeleport(hiddenPos) then return print("âŒ Failed teleport to homeless!") end
+
+            local spawnedHomeless
+            local spawnTimeout = os.clock() + 10
+            repeat
+                spawnedHomeless = HomelessLive:FindFirstChild(hiddenHomeless.Name)
+                if not spawnedHomeless then
+                    if getDistance(HRP.Position, hiddenPos) > 10 then
+                        if not safeTeleport(hiddenPos) then return end
+                    end
+                    task.wait(0.05)
+                end
+            until spawnedHomeless or os.clock() > spawnTimeout
+
+            if not spawnedHomeless then return end
+
+            local prompt = spawnedHomeless:FindFirstChild("UpperTorso") and spawnedHomeless.UpperTorso:FindFirstChild("ProximityPrompt")
+            if not prompt then return end
+
+            local startTime = tick()
+            while (Humanoid.Health / Humanoid.MaxHealth) > TARGET_HEALTH_PERCENT do
+                local current = HomelessLive:FindFirstChild(hiddenHomeless.Name)
+                if not current then return end
+                Character:PivotTo(CFrame.new(prompt.Parent.Position + Vector3.new(0, 1, 0)))
+                fireproximityprompt(prompt)
+                task.wait(0.01)
+                if tick() - startTime > 10 then return end
+            end
+
+            task.wait(0.5)
+            if not safeTeleport(finalTargetPosition) then return print("Failed teleport") end
+
+        end
+
+        spawn(showBlackScreen)
+        homelessFastTp(targetDestination)
+    end
+})
+
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local HRP = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+local Humanoid = LocalPlayer.Character:WaitForChild("Humanoid")
+local Character = LocalPlayer.Character
+
+local ATMsFolder = workspace:WaitForChild("Map"):WaitForChild("ATMS")
+local DropdownValues = {}
+local ATMPositions = {
+    ATM1 = Vector3.new(-33.1487, 3.7370, -299.5453),
+    ATM2 = Vector3.new(538.4818, 3.7371, -349.0415),
+    ATM3 = Vector3.new(497.8156, 3.7839, 405.5681),
+    ATM4 = Vector3.new(236.1748, 3.1180, -165.3973),
+    ATM5 = Vector3.new(-652.0219, 4.2857, 155.1690),
+    ATM6 = Vector3.new(-455.1304, 4.3107, 370.8311),
+    ATM7 = Vector3.new(-266.3022, 4.4058, -212.2364),
+    ATM8 = Vector3.new(-10.4940, 3.7371, 233.9844),
+    ATM9 = Vector3.new(717.0417, 3.8176, 413.7101),
+    ATM10 = Vector3.new(-536.8209, 4.2857, -20.3541),
+    ATM11 = Vector3.new(-652.021, 4.285, 155.169),
+    ATM12 = Vector3.new(714.4320, 4.2857, -240.3657),
+}
+
+local ATMModelToName = {}
+do
+    local index = 1
+    for atmName, _ in pairs(ATMPositions) do
+        ATMModelToName["ATM" .. index] = atmName
+        index += 1
+    end
+end
+
+local DropdownObject
+
+local function updateATMDropdown()
+    local newValues = {}
+    for _, atm in ipairs(ATMsFolder:GetChildren()) do
+        if atm:IsA("MeshPart") then
+            local screen = atm:FindFirstChild("ATMScreen")
+            if screen and screen:IsA("BasePart") then
+                local name = ATMModelToName[atm.Name] or atm.Name
+                local status = screen.Transparency == 0 and "âœ…" or "âŒ"
+                table.insert(newValues, string.format("%s %s", name, status))
+            end
+        end
+    end
+
+    table.sort(newValues)
+    DropdownObject:SetValues(newValues)
+end
+
+task.spawn(function()
+    while task.wait(3) do
+        updateATMDropdown()
     end
 end)
 
+DropdownObject = DropdownGroupBox:AddDropdown("TeleportDropdown", {
+    Values = {}, 
+    Default = "",
+    Multi = false,
+    MaxVisibleDropdownItems = 10,
+    Text = "ATM Tps",
+    Callback = function(value)
+        local atmName = value:match("ATM%d+")
+        if not atmName then return end
 
+        local targetPos = ATMPositions[atmName]
+        if not targetPos then return end
 
--- Teleport to Stronghold Diamond Chest button
-strongholdDropdown:AddButton("Teleport to Diamond Chest", function()
-    local items = workspace:FindFirstChild("Items")
-    if not items then
-        warn("Items folder not found!")
-        return
+        spawn(showBlackScreen)
+        teleportTo(targetPos)
+    end,
+})
+
+-- Run initial dropdown fill
+updateATMDropdown()
+
+local gunPositions = {
+    ["Five-Seven"] = Vector3.new(20.6746559, 17.0433044, 267.16098),
+	["Glock s"] = Vector3.new(17.1788197, 17.1216736, 266.977509),
+	["G22EXT"] = Vector3.new(-480.138062, 4.31854296, 358.03125),
+	["Glock 26"] = Vector3.new(231.441177, 3.96606469, -184.882095),
+	["GlockBeam"] = Vector3.new(236.684357, 3.96606469, -174.586014),
+	["Glock 23"] = Vector3.new(179.617676, 4.06848145, -199.788406),
+	["P80 extended"] = Vector3.new(174.691177, 4.06848145, -199.788406),
+	["G21S Vect Mag"] = Vector3.new(174.917068, 4.06848145, -189.788406),
+	["Glock 34 Extended"] = Vector3.new(172.566177, 4.06848145, -189.788406),
+	["Binary 300 Blackout ARP"] = Vector3.new(-288.074463, 4.16494179, 262.916992),
+	["Binary Black Draco"] = Vector3.new(-288.180786, 4.16494179, 269.200256),
+	["Binary G17 Gen 5"] = Vector3.new(-288.074463, 4.16494179, 265.916992)
+}
+
+local selectedGun = "Five-Seven"
+
+local gunList = (function()
+	local t = {}
+	for k in pairs(gunPositions) do
+		table.insert(t, k)
+	end
+	return t
+end)()
+
+DropdownGroupBox:AddDropdown("GunBuyDropdown", {
+	Values = gunList,
+	Default = "",
+	Multi = false,
+	Text = "Quick Buys",
+	Callback = function(value)
+		selectedGun = value
+	end
+})
+
+DropdownGroupBox:AddButton({
+    Text = "Buy Gun",
+    Func = function()
+        showBlackScreen()
+        local targetDestination = gunPositions[selectedGun]
+        if not targetDestination then return end
+
+        teleportTo(targetDestination)
+        task.wait(0.75)
+
+        local function getClosestPrompt()
+            local closestPrompt, closestDistance = nil, 10
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") and obj.Enabled then
+                    local parent = obj.Parent
+                    local pos = parent:IsA("Attachment") and parent.Parent:IsA("BasePart") and parent.Parent.Position or
+                                parent:IsA("BasePart") and parent.Position or nil
+                    if pos then
+                        local dist = (HRP.Position - pos).Magnitude
+                        if dist < closestDistance then
+                            closestPrompt = obj
+                            closestDistance = dist
+                        end
+                    end
+                end
+            end
+            return closestPrompt
+        end
+
+        local prompt = getClosestPrompt()
+        if prompt then
+            fireproximityprompt(prompt)
+            task.wait(0.5)
+        end
+
+        teleportTo(HRP.Position) -- Return to original position
     end
+})
 
-    local chest = items:FindFirstChild("Stronghold Diamond Chest")
-    if not chest then
-        warn("Stronghold Diamond Chest not found!")
-        return
-    end
+local SettingsGroup = Tabs.Settings:AddLeftGroupbox("Options")
 
-    local chestLid = chest:FindFirstChild("ChestLid")
-    if not chestLid then
-        warn("ChestLid not found!")
-        return
-    end
+SettingsGroup:AddButton({
+    Text = "Unload Script",
+    Func = function()
+        Library:Unload()
 
-    local diamondchest = chestLid:FindFirstChild("Meshes/diamondchest_Cube.002")
-    if not diamondchest then
-        warn("Diamond chest mesh not found!")
-        return
-    end
+        if _G._instantPromptConnection then
+            _G._instantPromptConnection:Disconnect()
+            _G._instantPromptConnection = nil
+        end
 
-    local hrp = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.CFrame = diamondchest.CFrame + Vector3.new(0, 5, 0)
+        if getgenv()._RainbowGunDisconnect then
+            getgenv()._RainbowGunDisconnect()
+        end
+
+        if _G.AirChams and _G.AirChams.Wrapped then
+            for player, data in pairs(_G.AirChams.Wrapped) do
+                if data.Connection then
+                    pcall(function() data.Connection:Disconnect() end)
+                end
+                for _, box in pairs(data) do
+                    if typeof(box) == "table" then
+                        for _, quad in pairs(box) do
+                            pcall(function() quad:Remove() end)
+                        end
+                    end
+                end
+            end
+            _G.AirChams.Wrapped = {}
+        end
+
+        getgenv().BypassLoaded = false
+        warn("[BypassHub] Unloaded successfully.")
+    end,
+    DoubleClick = false
+})
+
+SettingsGroup:AddLabel('Menu Keybind'):AddKeyPicker('MenuKeybind', {
+	Default = 'Insert',
+	NoUI = true,
+	Text = 'Menu keybind'
+})
+Library.ToggleKeybind = Options.MenuKeybind
+
+local RightGroupBox = Tabs.Settings:AddRightGroupbox("Server")
+
+RightGroupBox:AddButton("Rejoin Server", function()
+    local maxPlayers = RunService:IsStudio() and 50 or Players.MaxPlayers
+    local currentPlayers = #Players:GetPlayers()
+
+    if currentPlayers < maxPlayers then
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
     else
-        warn("HumanoidRootPart not found!")
+        warn("Failed to join server: Server is full.")
+        local message = Instance.new("Message")
+        message.Text = "Failed to join server: Server is full."
+        message.Parent = game.CoreGui
+        task.delay(3, function()
+            message:Destroy()
+        end)
     end
 end)
 
--- auto 
+local MaxPlayersInput = "19"
+RightGroupBox:AddInput("MaxPlayersInput", {
+    Text = "Max Players (default 19)",
+    Default = MaxPlayersInput,
+    Numeric = true,
+    Finished = true,
+    Callback = function(value)
+        MaxPlayersInput = value
+    end
+})
 
--- extra item automation
+RightGroupBox:AddButton("Server Hop", function()
+	local MinPlayers = 2
+	local MaxPlayers = tonumber(MaxPlayersInput) or 19
+	local Api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+
+	local success, result = pcall(function()
+		return HttpService:JSONDecode(game:HttpGet(Api)).data
+	end)
+
+	if success then
+		for _, Server in ipairs(result) do
+			local PlayerCount = Server.playing
+			if PlayerCount >= MinPlayers and PlayerCount <= MaxPlayers then
+				Library:Notify("ðŸŒ Server hopping... (" .. PlayerCount .. " players)", 3)
+				TeleportService:TeleportToPlaceInstance(game.PlaceId, Server.id, LocalPlayer)
+				return
+			end
+		end
+		Library:Notify("No server found in range (" .. MinPlayers .. "-" .. MaxPlayers .. ")", 3)
+	else
+		Library:Notify("Failed to fetch server list", 3)
+	end
+end)
+end)
+end)
+if getgenv then
+	getgenv().getconnections = function()
+		return {}
+	end
+end
