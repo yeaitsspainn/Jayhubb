@@ -4423,7 +4423,7 @@ if Game_Name == "The Bronx" then
                 pcall(function()
                     for _, conn in ipairs(getconnections(server.ChangeMagAndAmmo.OnClientEvent)) do
                         if conn.Function then
-                            setupvalue(conn.Function, 1, 10) 
+                            setupvalue(conn.Function, 1, 10000) 
                         end
                     end
                 end)
