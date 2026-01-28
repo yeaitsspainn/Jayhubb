@@ -2253,7 +2253,7 @@ do
                 end
 
                 if Config.TheBronx._Modifications.InfiniteClips then
-                    debug.setupvalue(getsenv(Weapon:FindFirstChild("GunScript_Local")).Reload, 3, 9e17)
+                    debug.setupvalue(getsenv(Weapon:FindFirstChild("GunScript_Local")).Reload, 3, 10000)
 
                     SetInfiniteClips = false
                 end
